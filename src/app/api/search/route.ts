@@ -174,12 +174,12 @@ export async function POST(req: Request) {
           citationCoverage: article.citationCoverage,
         });
       } catch (err) {
+        // Log the real error server-side; never leak internals to the client.
+        console.error("search route error:", err);
         send({
           type: "error",
           message:
-            err instanceof Error
-              ? err.message
-              : "Something went wrong generating your article.",
+            "Something went wrong generating your article. Please try again.",
         });
         if (searchId) {
           await markSearchError(

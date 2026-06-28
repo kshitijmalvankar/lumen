@@ -48,9 +48,9 @@ export function AuthForm({ mode, error, message }: AuthFormProps) {
   const action = isLogin ? login : signup;
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm shadow-xl shadow-brand/5">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">
+        <CardTitle className="font-serif text-2xl font-semibold tracking-tight">
           {isLogin ? "Welcome back" : "Create your account"}
         </CardTitle>
         <CardDescription>
@@ -107,7 +107,7 @@ export function AuthForm({ mode, error, message }: AuthFormProps) {
               name="password"
               type="password"
               required
-              minLength={6}
+              minLength={8}
               autoComplete={isLogin ? "current-password" : "new-password"}
             />
           </div>
