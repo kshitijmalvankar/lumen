@@ -16,10 +16,16 @@ Full product/technical plan: **[PLAN.md](./PLAN.md)**. Setup/run/test:
 - ✅ **Phase 1 — Core search → cited article**: built **and verified working**
   end-to-end in a real browser (search streams an article with inline citations
   + a credibility-scored source list; rows persist to Supabase).
-- ⏭️ **NEXT: Phase 2 — Knowledge library** (browse search history; save/bookmark;
-  article reader view of saved summaries). Then Phase 3 (AI auto-categorization +
-  interest profile), Phase 4 (deep-research mode + follow-ups; URL-paste already
-  works), Phase 5 (discovery feed + insights dashboard), Phase 6 (share + export).
+- ✅ **Phase 2 — Knowledge library**: built **and verified working** in a real
+  browser. `/app/library` lists every auto-saved summary (newest first) with a
+  client-side text filter + All/Saved tabs; bookmark toggle persists to the
+  `bookmarks` table (verified across reload); `/app/article/[id]` is a reader
+  view that rebuilds the article from stored `summary_blocks` + `sources` and
+  reuses `CitationMarkdown`/`SourceList`. Header nav (Search/Library) added.
+- ⏭️ **NEXT: Phase 3 — AI auto-categorization + interest profile** (background
+  categorize with dedup; build interest profile + privacy controls). Then
+  Phase 4 (deep-research mode + follow-ups; URL-paste already works), Phase 5
+  (discovery feed + insights dashboard), Phase 6 (share + export).
 
 ## Tech stack (as actually built — note deviations from the original plan)
 
@@ -59,16 +65,21 @@ src/app/page.tsx                 landing
 src/app/login|signup/page.tsx    email+password auth pages (AuthForm)
 src/app/auth/actions.ts          login/signup/signInWithGoogle server actions
 src/app/auth/callback/route.ts   OAuth code exchange
-src/app/app/(layout|page).tsx    authed shell + SearchView
+src/app/app/(layout|page).tsx    authed shell (header nav) + SearchView
+src/app/app/library/page.tsx     library list (server) → LibraryView
+src/app/app/library/actions.ts   setBookmark server action (bookmarks table)
+src/app/app/article/[id]/page.tsx reader view (rebuilds article from DB)
 src/app/api/search/route.ts      streaming search endpoint
 src/proxy.ts                     session refresh + route guard (Next 16 "proxy", not middleware)
 src/lib/env.ts                   lenient env access (requireEnv at use site)
 src/lib/supabase/*               browser + server clients, proxy session helper
 src/lib/ai/{openrouter,models,prompts,summarize,parse}.ts
 src/lib/search/{pipeline,persist,credibility}.ts
+src/lib/library/queries.ts       listLibrary + getArticle (+ blocksToMarkdown)
 src/lib/extract/jina.ts          pasted-URL extraction
 src/lib/cache/redis.ts           cache + rate limit (no-ops if Upstash unset)
-src/components/{search,auth}/*, src/components/ui/*  (shadcn)
+src/components/app-nav.tsx        header Search/Library nav (active highlight)
+src/components/{search,library,auth}/*, src/components/ui/*  (shadcn)
 supabase/schema.sql              ALL tables + RLS + signup trigger (run in SQL editor)
 ```
 

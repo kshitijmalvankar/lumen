@@ -1,11 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Search, Loader2, AlertCircle, ShieldCheck, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { Search, Loader2, AlertCircle, BookOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { CitationMarkdown } from "./citation-markdown";
+import { CoverageNote } from "./coverage-note";
 import { SourceList, type SourceMeta } from "./source-list";
+import { BookmarkButton } from "@/components/library/bookmark-button";
 
 type Status = "idle" | "running" | "done" | "error";
 
@@ -205,38 +209,36 @@ export function SearchView() {
 
           <SourceList sources={sources} />
 
-          {status === "done" && (
-            <p className="mt-8 border-t pt-4 text-xs text-muted-foreground">
-              Lumen summarizes sources and can be wrong — open the sources to
-              verify any claim. Informational only, not professional (medical,
-              legal, or financial) advice.
-            </p>
+          {status === "done" && info && (
+            <>
+              <div className="mt-8 flex items-center gap-2 border-t pt-4">
+                <span className="text-sm text-muted-foreground">
+                  Saved to your library
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <BookmarkButton
+                    summaryId={info.summaryId}
+                    initial={false}
+                    withLabel
+                  />
+                  <Link
+                    href={`/app/article/${info.summaryId}`}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    Open reader
+                  </Link>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Lumen summarizes sources and can be wrong — open the sources to
+                verify any claim. Informational only, not professional (medical,
+                legal, or financial) advice.
+              </p>
+            </>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function CoverageNote({ coverage }: { coverage: number }) {
-  const pct = Math.round(coverage * 100);
-  const limited = coverage < 0.5;
-  return (
-    <div
-      className={`mt-6 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
-        limited
-          ? "border-amber-600/30 text-amber-700 dark:text-amber-400"
-          : "text-muted-foreground"
-      }`}
-    >
-      {limited ? (
-        <ShieldAlert className="h-3.5 w-3.5" />
-      ) : (
-        <ShieldCheck className="h-3.5 w-3.5" />
-      )}
-      {limited
-        ? `Limited sourcing — ${pct}% of claims cited. Verify carefully.`
-        : `${pct}% of claims cited`}
     </div>
   );
 }
