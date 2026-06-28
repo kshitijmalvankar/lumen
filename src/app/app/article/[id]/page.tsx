@@ -10,18 +10,9 @@ import { SourceList } from "@/components/search/source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(d: string): string {
-  const date = new Date(d);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default async function ArticlePage({
   params,
@@ -39,7 +30,7 @@ export default async function ArticlePage({
   const date = formatDate(article.createdAt);
 
   return (
-    <article>
+    <article className="animate-in fade-in slide-in-from-bottom-2 duration-500">
       <Link
         href="/app/library"
         className={cn(
@@ -53,7 +44,7 @@ export default async function ArticlePage({
 
       <header className="mt-4">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight">
+          <h1 className="font-serif text-4xl font-semibold leading-[1.1] tracking-tight">
             {article.title}
           </h1>
           <BookmarkButton

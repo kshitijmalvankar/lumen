@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { Compass, FileText, Library, Sparkles } from "lucide-react";
+import {
+  Compass,
+  FileText,
+  Library,
+  Sparkles,
+  ArrowRight,
+} from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -29,9 +35,23 @@ const features = [
 
 export default function Home() {
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="relative flex min-h-full flex-col overflow-hidden">
+      {/* Page-level aurora */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[600px]">
+        <div className="aurora-blob animate-float-slow left-[12%] top-10 h-72 w-72 bg-brand/40" />
+        <div className="aurora-blob animate-float-slower right-[10%] top-24 h-80 w-80 bg-violet-400/35" />
+        <div className="aurora-blob animate-float-slow left-1/2 top-0 h-64 w-64 -translate-x-1/2 bg-sky-300/25" />
+      </div>
+
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-5">
-        <span className="text-lg font-semibold tracking-tight">Lumen</span>
+        <span className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-sm">
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <span className="font-serif text-xl font-semibold tracking-tight">
+            Lumen
+          </span>
+        </span>
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Link
@@ -45,22 +65,24 @@ export default function Home() {
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6">
         <section className="flex flex-col items-center py-20 text-center sm:py-28">
-          <span className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-muted-foreground">
-            <Sparkles className="h-3.5 w-3.5" /> Research, distilled
+          <span className="mb-5 inline-flex animate-in items-center gap-2 rounded-full border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur fade-in slide-in-from-bottom-2 duration-500">
+            <Sparkles className="h-3.5 w-3.5 text-brand" /> Research, distilled
           </span>
-          <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
-            Turn any topic into a clear, cited article.
+          <h1 className="max-w-3xl animate-in text-balance font-serif text-5xl font-semibold leading-[1.05] tracking-tight fade-in slide-in-from-bottom-3 duration-700 sm:text-7xl">
+            Turn any topic into a{" "}
+            <span className="text-brand">clear, cited</span> article.
           </h1>
-          <p className="mt-6 max-w-xl text-balance text-lg text-muted-foreground">
+          <p className="mt-6 max-w-xl animate-in text-balance text-lg text-muted-foreground fade-in slide-in-from-bottom-3 duration-700 [animation-delay:120ms]">
             Lumen searches credible sources, reads them for you, and writes one
             trustworthy summary — with links to verify every claim.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex animate-in flex-wrap items-center justify-center gap-3 fade-in slide-in-from-bottom-3 duration-700 [animation-delay:220ms]">
             <Link
               href="/login"
-              className={cn(buttonVariants({ size: "lg" }))}
+              className={cn(buttonVariants({ size: "lg" }), "group")}
             >
               Get started — it&apos;s free
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/app"
@@ -72,14 +94,21 @@ export default function Home() {
         </section>
 
         <section className="grid gap-4 pb-24 sm:grid-cols-2">
-          {features.map((f) => (
+          {features.map((f, i) => (
             <div
               key={f.title}
-              className="rounded-xl border bg-card p-6 text-card-foreground"
+              className="lift group animate-in rounded-2xl border bg-card p-6 text-card-foreground fade-in fill-mode-both hover:border-brand/40"
+              style={{ animationDelay: `${300 + i * 90}ms` }}
             >
-              <f.icon className="h-5 w-5 text-muted-foreground" />
-              <h3 className="mt-4 font-medium">{f.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{f.body}</p>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/15 transition-colors group-hover:bg-brand group-hover:text-brand-foreground">
+                <f.icon className="h-5 w-5" />
+              </span>
+              <h3 className="mt-4 font-serif text-lg font-medium tracking-tight">
+                {f.title}
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                {f.body}
+              </p>
             </div>
           ))}
         </section>
