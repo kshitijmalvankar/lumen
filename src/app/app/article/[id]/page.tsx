@@ -44,7 +44,7 @@ export default async function ArticlePage({
 
       <header className="mt-4">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="font-serif text-4xl font-semibold leading-[1.1] tracking-tight">
+          <h1 className="min-w-0 font-serif text-4xl font-semibold leading-[1.1] tracking-tight">
             {article.title}
           </h1>
           <BookmarkButton

@@ -153,7 +153,7 @@ function LibraryCard({ item, index }: { item: LibraryItem; index: number }) {
 
   return (
     <li
-      className="lift group relative flex animate-in flex-col gap-3 rounded-xl border bg-card p-5 fade-in slide-in-from-bottom-1 fill-mode-both hover:border-brand/40"
+      className="lift group relative flex min-w-0 animate-in flex-col gap-3 rounded-xl border bg-card p-5 fade-in slide-in-from-bottom-1 fill-mode-both hover:border-brand/40"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <Link
@@ -163,7 +163,7 @@ function LibraryCard({ item, index }: { item: LibraryItem; index: number }) {
       />
 
       <div className="flex items-start justify-between gap-2">
-        <h2 className="line-clamp-2 font-serif text-lg font-medium leading-snug tracking-tight transition-colors group-hover:text-brand">
+        <h2 className="line-clamp-2 min-w-0 font-serif text-lg font-medium leading-snug tracking-tight transition-colors group-hover:text-brand">
           {item.title}
         </h2>
         <div className="relative z-10 -mr-1.5 -mt-1.5 flex items-center">
