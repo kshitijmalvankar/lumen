@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, Library } from "lucide-react";
+import { Search, Library, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/app", label: "Search", icon: Search, exact: true },
   { href: "/app/library", label: "Library", icon: Library, exact: false },
+  { href: "/app/settings", label: "Settings", icon: Settings, exact: false },
 ];
 
 export function AppNav() {
