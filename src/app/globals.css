@@ -173,6 +173,35 @@
   animation: float-slow 16s ease-in-out infinite;
 }
 
+/* Seamless horizontal marquee (duplicate the track, translate by -50%). */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 12%,
+    #000 88%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 12%,
+    #000 88%,
+    transparent
+  );
+}
+
 /* Card that lifts and brightens its ring on hover. */
 .lift {
   transition:
@@ -195,7 +224,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-float-slow,
-  .animate-float-slower {
+  .animate-float-slower,
+  .animate-marquee {
     animation: none;
   }
 }

@@ -24,6 +24,7 @@ export interface ArticleData {
   modelUsed: string | null;
   bookmarked: boolean;
   bodyMarkdown: string;
+  aiAnalysis: string | null;
   sources: SourceMeta[];
 }
 
@@ -96,7 +97,7 @@ export async function getArticle(
   const { data: summary, error } = await supabase
     .from("summaries")
     .select(
-      "id, title, created_at, length_kind, citation_coverage, model_used, searches!inner(query, input_type)",
+      "id, title, created_at, length_kind, citation_coverage, model_used, ai_analysis, searches!inner(query, input_type)",
     )
     .eq("id", summaryId)
     .maybeSingle();
@@ -160,6 +161,7 @@ export async function getArticle(
     modelUsed: (s.model_used as string | null) ?? null,
     bookmarked: Boolean(bmRes.data),
     bodyMarkdown: blocksToMarkdown(blocks),
+    aiAnalysis: (s.ai_analysis as string | null) ?? null,
     sources,
   };
 }

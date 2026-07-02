@@ -59,9 +59,10 @@ export async function persistResult(
     article: ParsedArticle;
     sources: PreparedSource[];
     modelUsed: string;
+    aiAnalysis?: string | null;
   },
 ): Promise<string> {
-  const { userId, searchId, article, sources, modelUsed } = args;
+  const { userId, searchId, article, sources, modelUsed, aiAnalysis } = args;
 
   const { data: summary, error: sumErr } = await supabase
     .from("summaries")
@@ -72,6 +73,7 @@ export async function persistResult(
       model_used: modelUsed,
       length_kind: article.lengthKind,
       citation_coverage: article.citationCoverage,
+      ai_analysis: aiAnalysis ?? null,
     })
     .select("id")
     .single();

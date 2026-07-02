@@ -17,6 +17,10 @@ import { CitationMarkdown } from "./citation-markdown";
 import { CoverageNote } from "./coverage-note";
 import { SourceList, type SourceMeta } from "./source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
+import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
+import { ModelPicker } from "./model-picker";
+import { defaultModelId, type ModelId } from "@/lib/ai/model-catalog";
+import type { Tier } from "@/lib/billing/entitlements";
 
 type Status = "idle" | "running" | "done" | "error";
 
@@ -25,6 +29,7 @@ interface DoneInfo {
   title: string;
   lengthKind: "paragraph" | "article";
   citationCoverage: number;
+  tier?: "free" | "pro" | "max";
 }
 
 const EXAMPLES = [
@@ -34,24 +39,27 @@ const EXAMPLES = [
   "What is the state of fusion energy?",
 ];
 
-const PHASES = ["searching", "reading", "writing"] as const;
+const PHASES = ["searching", "reading", "writing", "analyzing"] as const;
 const PHASE_LABEL: Record<string, string> = {
   searching: "Searching credible sources",
   reading: "Reading the sources",
   writing: "Writing your article",
+  analyzing: "Adding AI analysis",
   cached: "Found a recent result",
 };
 
-export function SearchView() {
+export function SearchView({ tier }: { tier: Tier }) {
   const [input, setInput] = React.useState("");
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<Status>("idle");
   const [phase, setPhase] = React.useState<string>("");
   const [markdown, setMarkdown] = React.useState("");
+  const [analysis, setAnalysis] = React.useState("");
   const [sources, setSources] = React.useState<SourceMeta[]>([]);
   const [info, setInfo] = React.useState<DoneInfo | null>(null);
   const [error, setError] = React.useState("");
   const [exampleIdx, setExampleIdx] = React.useState(0);
+  const [model, setModel] = React.useState<ModelId>(defaultModelId(tier));
   const abortRef = React.useRef<AbortController | null>(null);
 
   // Gently rotate the placeholder example while the field is idle + empty.
@@ -76,6 +84,7 @@ export function SearchView() {
     setStatus("running");
     setPhase("searching");
     setMarkdown("");
+    setAnalysis("");
     setSources([]);
     setInfo(null);
     setError("");
@@ -84,7 +93,7 @@ export function SearchView() {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed }),
+        body: JSON.stringify({ query: trimmed, model }),
         signal: controller.signal,
       });
 
@@ -126,6 +135,9 @@ export function SearchView() {
             case "delta":
               setMarkdown((m) => m + String(evt.text ?? ""));
               break;
+            case "analysis":
+              setAnalysis(String(evt.text ?? ""));
+              break;
             case "done":
               setInfo(evt as unknown as DoneInfo);
               setStatus("done");
@@ -144,7 +156,7 @@ export function SearchView() {
       setError("Connection lost. Please try again.");
       setStatus("error");
     }
-  }, []);
+  }, [model]);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -207,6 +219,15 @@ export function SearchView() {
         </Button>
       </form>
 
+      <div className="mx-auto mt-3 flex max-w-2xl justify-center">
+        <ModelPicker
+          tier={tier}
+          value={model}
+          onChange={setModel}
+          disabled={isRunning}
+        />
+      </div>
+
       {isIdle && (
         <div className="mx-auto mt-5 flex max-w-2xl flex-wrap justify-center gap-2">
           {EXAMPLES.map((e) => (
@@ -248,6 +269,14 @@ export function SearchView() {
           {status === "done" && info && (
             <CoverageNote coverage={info.citationCoverage} />
           )}
+
+          {status === "done" &&
+            info &&
+            (info.tier === "free" ? (
+              <AiAnalysisTeaser />
+            ) : analysis ? (
+              <AiAnalysis markdown={analysis} />
+            ) : null)}
 
           <SourceList sources={sources} />
 

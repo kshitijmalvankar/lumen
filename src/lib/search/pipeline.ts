@@ -1,5 +1,5 @@
 import { env, requireEnv } from "@/lib/env";
-import { selectModel } from "@/lib/ai/models";
+import { categorizeModel } from "@/lib/ai/models";
 import { scoreCredibility, type CredibilityTier } from "./credibility";
 import { extractContent } from "@/lib/extract/jina";
 
@@ -69,7 +69,7 @@ export async function gatherSearchSources(
       "X-Title": "Lumen",
     },
     body: JSON.stringify({
-      model: selectModel("categorize"), // cheap; just triggers retrieval
+      model: categorizeModel(), // cheap; just triggers retrieval
       plugins: [{ id: "web", max_results: count }],
       messages: [
         {

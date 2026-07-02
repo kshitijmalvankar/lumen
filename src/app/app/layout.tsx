@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Zap, Crown } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/env";
 
 // Authenticated, personalized area — always render per-request.
 export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
+import { getUserTier, type Tier } from "@/lib/billing/entitlements";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/components/sign-out-button";
 import { AppNav } from "@/components/app-nav";
+import { cn } from "@/lib/utils";
 
 export default async function AppLayout({
   children,
@@ -15,12 +17,14 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   let email: string | null = null;
+  let tier: Tier = "free";
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     email = user?.email ?? null;
+    if (user) tier = await getUserTier(supabase, user.id);
   }
 
   return (
@@ -39,6 +43,7 @@ export default async function AppLayout({
             <AppNav />
           </div>
           <div className="flex items-center gap-2">
+            <PlanPill tier={tier} />
             {email && (
               <span className="hidden text-sm text-muted-foreground md:inline">
                 {email}
@@ -53,5 +58,45 @@ export default async function AppLayout({
         {children}
       </main>
     </div>
+  );
+}
+
+// Free → an "Upgrade" CTA to the plans page. Paid → the tier badge, linking to
+// Settings to manage the subscription.
+function PlanPill({ tier }: { tier: Tier }) {
+  if (tier === "max") {
+    return (
+      <Link
+        href="/app/settings"
+        className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand transition-colors hover:bg-brand/15"
+      >
+        <Crown className="h-3.5 w-3.5" />
+        Max
+      </Link>
+    );
+  }
+  const isPro = tier === "pro";
+  return (
+    <Link
+      href={isPro ? "/app/settings" : "/app/upgrade"}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+        isPro
+          ? "border border-brand/30 bg-brand/10 text-brand hover:bg-brand/15"
+          : "bg-brand text-brand-foreground hover:bg-brand/90",
+      )}
+    >
+      {isPro ? (
+        <>
+          <Zap className="h-3.5 w-3.5" />
+          Pro
+        </>
+      ) : (
+        <>
+          <Sparkles className="h-3.5 w-3.5" />
+          Upgrade
+        </>
+      )}
+    </Link>
   );
 }

@@ -4,10 +4,12 @@ import { ArrowLeft, Link2, FileText } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { getArticle } from "@/lib/library/queries";
+import { getUserTier } from "@/lib/billing/entitlements";
 import { CitationMarkdown } from "@/components/search/citation-markdown";
 import { CoverageNote } from "@/components/search/coverage-note";
 import { SourceList } from "@/components/search/source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
+import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -26,6 +28,11 @@ export default async function ArticlePage({
   const supabase = await createClient();
   const article = await getArticle(supabase, id);
   if (!article) notFound();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const tier = user ? await getUserTier(supabase, user.id) : "free";
 
   const date = formatDate(article.createdAt);
 
@@ -84,6 +91,12 @@ export default async function ArticlePage({
       {article.citationCoverage != null && (
         <CoverageNote coverage={article.citationCoverage} />
       )}
+
+      {article.aiAnalysis ? (
+        <AiAnalysis markdown={article.aiAnalysis} />
+      ) : tier === "free" ? (
+        <AiAnalysisTeaser />
+      ) : null}
 
       <SourceList sources={article.sources} />
 

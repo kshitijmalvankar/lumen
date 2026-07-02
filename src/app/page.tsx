@@ -10,6 +10,16 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+// The models Lumen actually serves (see src/lib/ai/model-catalog.ts). Keep this
+// list in sync with what users can really pick — no models we don't offer.
+const MODELS = [
+  "Claude Opus",
+  "Claude Sonnet",
+  "Claude Haiku",
+  "GPT-5",
+  "Gemini 2.5 Pro",
+];
+
 const features = [
   {
     icon: Sparkles,
@@ -90,6 +100,29 @@ export default function Home() {
             >
               Open the app
             </Link>
+          </div>
+        </section>
+
+        <section className="pb-20">
+          <p className="text-center text-sm text-muted-foreground">
+            Not locked to one model — Lumen taps the best across providers.{" "}
+            <span className="text-foreground">
+              Your plan unlocks the most advanced.
+            </span>
+          </p>
+          <div className="marquee-mask relative mt-6 overflow-hidden">
+            <div className="flex w-max animate-marquee gap-3">
+              {/* 4 copies: the -50% loop shows 2 copies, wide enough to fill. */}
+              {[...MODELS, ...MODELS, ...MODELS, ...MODELS].map((m, i) => (
+                <span
+                  key={i}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-full border bg-card/60 px-4 py-2 text-sm font-medium text-muted-foreground backdrop-blur"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+                  {m}
+                </span>
+              ))}
+            </div>
           </div>
         </section>
 

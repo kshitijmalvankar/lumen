@@ -16,8 +16,8 @@ export const env = {
   openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   openrouterBaseUrl:
     process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
-  openrouterModelQuick: process.env.OPENROUTER_MODEL_QUICK ?? "",
-  openrouterModelDeep: process.env.OPENROUTER_MODEL_DEEP ?? "",
+  // Background source-discovery / tagging model. The article model is chosen
+  // per tier/pick in src/lib/ai/model-catalog.ts.
   openrouterModelCategorize: process.env.OPENROUTER_MODEL_CATEGORIZE ?? "",
 
   // Jina Reader (optional)
@@ -26,6 +26,12 @@ export const env = {
   // Upstash Redis
   upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
   upstashRedisToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
+
+  // Stripe (server-only). Price ids map a tier to its monthly subscription.
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
+  stripePricePro: process.env.STRIPE_PRICE_PRO ?? "",
+  stripePriceMax: process.env.STRIPE_PRICE_MAX ?? "",
 
   // App
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
@@ -49,3 +55,6 @@ export const isSupabaseConfigured = () =>
 
 export const isRedisConfigured = () =>
   Boolean(env.upstashRedisUrl && env.upstashRedisToken);
+
+export const isStripeConfigured = () =>
+  Boolean(env.stripeSecretKey && env.stripePricePro && env.stripePriceMax);

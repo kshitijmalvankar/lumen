@@ -31,6 +31,9 @@ exception when duplicate_object then null; end $$;
 do $$ begin create type suggestion_type as enum ('topic','article');
 exception when duplicate_object then null; end $$;
 
+do $$ begin create type plan_tier as enum ('free','pro','max');
+exception when duplicate_object then null; end $$;
+
 -- ---------- Tables ----------------------------------------------------------
 
 -- One profile row per authenticated user (auto-created by a trigger below).
@@ -40,6 +43,19 @@ create table if not exists public.profiles (
   display_name            text,
   personalization_enabled boolean not null default true,
   created_at              timestamptz not null default now()
+);
+
+-- Billing tier per user. SERVER-AUTHORITATIVE: the owner may read this row but
+-- NOT write it (no write policy below), so a tier can never be self-upgraded
+-- from the browser. Writes happen via the service-role key (Stripe webhook, or
+-- manually in the dashboard).
+create table if not exists public.entitlements (
+  user_id                uuid primary key references auth.users(id) on delete cascade,
+  tier                   plan_tier not null default 'free',
+  current_period_end     timestamptz,
+  stripe_customer_id     text,
+  stripe_subscription_id text,
+  updated_at             timestamptz not null default now()
 );
 
 create table if not exists public.searches (
@@ -67,6 +83,8 @@ create table if not exists public.summaries (
   created_at        timestamptz not null default now()
 );
 create index if not exists summaries_user_idx on public.summaries (user_id);
+-- Lumen's own AI commentary (Pro/Max only); null when free or nothing to add.
+alter table public.summaries add column if not exists ai_analysis text;
 
 create table if not exists public.summary_blocks (
   id         uuid primary key default gen_random_uuid(),
@@ -216,6 +234,15 @@ create policy profiles_self on public.profiles
   using (id = auth.uid())
   with check (id = auth.uid());
 
+-- entitlements: owner may READ only. No write policy => the anon/authenticated
+-- client cannot insert/update/delete (RLS default-deny); only the service-role
+-- key bypasses RLS. This is what makes the tier un-self-upgradable.
+alter table public.entitlements enable row level security;
+drop policy if exists entitlements_select_own on public.entitlements;
+create policy entitlements_select_own on public.entitlements
+  for select to authenticated
+  using (user_id = auth.uid());
+
 -- ---------- Auto-create a profile on signup ---------------------------------
 create or replace function public.handle_new_user()
 returns trigger
@@ -231,6 +258,12 @@ begin
     coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name')
   )
   on conflict (id) do nothing;
+
+  -- Every new user starts on the free tier.
+  insert into public.entitlements (user_id)
+  values (new.id)
+  on conflict (user_id) do nothing;
+
   return new;
 end;
 $$;
