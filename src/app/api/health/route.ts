@@ -7,6 +7,7 @@ import {
 } from "@/lib/env";
 import { getOpenRouter } from "@/lib/ai/openrouter";
 import { MODEL_CATALOG } from "@/lib/ai/model-catalog";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +17,11 @@ export const dynamic = "force-dynamic";
  * tests. Only booleans and the (public) site URL are returned — never secrets.
  *
  * `GET /api/health`         → cheap: which services are configured.
- * `GET /api/health?deep=1`  → also validates each model-catalog slug against
- *                             OpenRouter's live model list (a bad slug would make
- *                             that model's searches fail with a vague error).
+ * `GET /api/health?deep=1`  → also validates model-catalog slugs against
+ *                             OpenRouter's live model list, and confirms the
+ *                             service-role key can actually bypass RLS (a wrong
+ *                             key, e.g. the anon key, would otherwise fail
+ *                             silently: shares 404, Stripe tier writes drop).
  */
 export async function GET(req: Request) {
   const deep = new URL(req.url).searchParams.get("deep") === "1";
@@ -32,10 +35,15 @@ export async function GET(req: Request) {
     siteUrl: env.siteUrl,
   };
 
-  const models = deep ? await checkModelSlugs() : undefined;
+  const [models, admin] = deep
+    ? await Promise.all([checkModelSlugs(), checkAdmin()])
+    : [undefined, undefined];
 
   const degraded =
-    !services.supabase || !services.openrouter || (models ? !models.ok : false);
+    !services.supabase ||
+    !services.openrouter ||
+    (models ? !models.ok : false) ||
+    (admin ? !admin.ok : false);
 
   return NextResponse.json(
     {
@@ -43,9 +51,30 @@ export async function GET(req: Request) {
       time: new Date().toISOString(),
       services,
       ...(models ? { models } : {}),
+      ...(admin ? { admin } : {}),
     },
     { status: degraded ? 503 : 200, headers: { "Cache-Control": "no-store" } },
   );
+}
+
+/**
+ * Confirm the service-role key truly has admin privileges. `auth.admin.listUsers`
+ * requires the real service_role secret; the anon/publishable key errors here —
+ * which is exactly the misconfig that makes public share pages 404 and Stripe
+ * entitlement writes silently drop.
+ */
+async function checkAdmin(): Promise<{ ok: boolean; error?: string }> {
+  if (!env.supabaseServiceRoleKey) {
+    return { ok: false, error: "no service role key configured" };
+  }
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "unknown" };
+  }
 }
 
 /** Verify every catalog slug is a live OpenRouter model id. */
