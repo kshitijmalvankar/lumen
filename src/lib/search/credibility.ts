@@ -26,6 +26,17 @@ const HIGH_DOMAINS = new Set([
   "nasa.gov",
   "imf.org",
   "worldbank.org",
+  // India — established national dailies, business papers, the PTI wire, and RBI.
+  // (economictimes.indiatimes.com is listed by full domain so it outranks the
+  // shared indiatimes.com root used by Times of India below.)
+  "thehindu.com",
+  "indianexpress.com",
+  "livemint.com",
+  "business-standard.com",
+  "economictimes.indiatimes.com",
+  "thehindubusinessline.com",
+  "ptinews.com",
+  "rbi.org.in",
 ]);
 
 const MEDIUM_DOMAINS = new Set([
@@ -39,6 +50,15 @@ const MEDIUM_DOMAINS = new Set([
   "businessinsider.com",
   "medium.com",
   "substack.com",
+  // India — reputable but broader-remit outlets (general news, digital-native).
+  "hindustantimes.com",
+  "ndtv.com",
+  "timesofindia.indiatimes.com",
+  "moneycontrol.com",
+  "theprint.in",
+  "scroll.in",
+  "thewire.in",
+  "news18.com",
 ]);
 
 function rootDomain(domain: string): string {

@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { isStripeConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getEntitlement } from "@/lib/billing/entitlements";
 import { getStripe, priceForTier, type PaidTier } from "@/lib/billing/stripe";
 
@@ -78,4 +80,45 @@ export async function resetInterests() {
   if (!user) redirect("/login?next=/app/settings");
   await supabase.from("interest_profile").delete().eq("user_id", user.id);
   revalidatePath("/app/settings");
+}
+
+/* ------------------------------ account ---------------------------------- */
+
+/**
+ * Permanently delete the caller's account and all their data (GDPR erasure).
+ * Cancels any live subscription first (best-effort) so a deleted account isn't
+ * billed, then removes the auth user via the service-role client — every
+ * per-user table cascades on `auth.users` delete. Signs out and returns home.
+ */
+export async function deleteAccount() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const userId = user.id;
+
+  // Stop billing immediately (best-effort — never block deletion on Stripe).
+  try {
+    const ent = await getEntitlement(supabase, userId);
+    if (ent.stripeSubscriptionId && isStripeConfigured()) {
+      await getStripe().subscriptions.cancel(ent.stripeSubscriptionId);
+    }
+  } catch (err) {
+    console.error("deleteAccount: subscription cancel failed:", err);
+  }
+
+  // Erase the auth user; ON DELETE CASCADE removes profiles, searches,
+  // summaries, sources, shares, messages, entitlements, etc.
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) throw new Error(`account deletion failed: ${error.message}`);
+
+  // Clear the now-orphaned session cookie; never let this block the redirect.
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.error("deleteAccount: signOut after deletion failed:", err);
+  }
+  redirect("/");
 }

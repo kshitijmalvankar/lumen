@@ -4,12 +4,16 @@ import { ArrowLeft, Link2, FileText } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { getArticle } from "@/lib/library/queries";
+import { getActiveShareUrl } from "@/lib/share/queries";
+import { getMessages } from "@/lib/library/messages";
 import { getUserTier } from "@/lib/billing/entitlements";
 import { CitationMarkdown } from "@/components/search/citation-markdown";
 import { CoverageNote } from "@/components/search/coverage-note";
 import { SourceList } from "@/components/search/source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
+import { ShareButton } from "@/components/share/share-button";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
+import { FollowUpChat, FollowUpChatLocked } from "@/components/chat/follow-up-chat";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -34,6 +38,13 @@ export default async function ArticlePage({
   } = await supabase.auth.getUser();
   const tier = user ? await getUserTier(supabase, user.id) : "free";
 
+  // Follow-up chat is Max-only; load its persisted history for that tier.
+  const chatHistory =
+    tier === "max" ? await getMessages(supabase, article.searchId) : [];
+
+  // If the article is already shared, open the share button straight to the link.
+  const shareUrl = await getActiveShareUrl(supabase, article.summaryId);
+
   const date = formatDate(article.createdAt);
 
   return (
@@ -50,16 +61,18 @@ export default async function ArticlePage({
       </Link>
 
       <header className="mt-4">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="min-w-0 font-serif text-4xl font-semibold leading-[1.1] tracking-tight">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="min-w-0 font-serif text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl">
             {article.title}
           </h1>
-          <BookmarkButton
-            summaryId={article.summaryId}
-            initial={article.bookmarked}
-            withLabel
-            className="mt-1 shrink-0"
-          />
+          <div className="flex shrink-0 items-center gap-2 sm:mt-1">
+            <ShareButton summaryId={article.summaryId} initialUrl={shareUrl} />
+            <BookmarkButton
+              summaryId={article.summaryId}
+              initial={article.bookmarked}
+              withLabel
+            />
+          </div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
@@ -99,6 +112,18 @@ export default async function ArticlePage({
       ) : null}
 
       <SourceList sources={article.sources} />
+
+      {tier === "max" ? (
+        <FollowUpChat
+          summaryId={article.summaryId}
+          initialMessages={chatHistory.map((m) => ({
+            role: m.role,
+            content: m.content,
+          }))}
+        />
+      ) : (
+        <FollowUpChatLocked />
+      )}
 
       <p className="mt-8 border-t pt-4 text-xs text-muted-foreground">
         Lumen summarizes sources and can be wrong — open the sources to verify

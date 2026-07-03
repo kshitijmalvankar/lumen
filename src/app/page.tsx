@@ -9,6 +9,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SiteFooter } from "@/components/site-footer";
 
 // The models Lumen actually serves (see src/lib/ai/model-catalog.ts). Keep this
 // list in sync with what users can really pick — no models we don't offer.
@@ -147,9 +148,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="mx-auto w-full max-w-5xl px-6 py-8 text-sm text-muted-foreground">
-        Lumen — informational summaries, not professional advice.
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

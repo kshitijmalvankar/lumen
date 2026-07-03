@@ -89,8 +89,13 @@ export async function checkRateLimit(
 
   const limiter = hourlyLimiter(limit);
   if (limiter) {
-    const { success, remaining } = await limiter.limit(`u:${userId}`);
-    return { allowed: success, remaining, limit };
+    try {
+      const { success, remaining } = await limiter.limit(`u:${userId}`);
+      return { allowed: success, remaining, limit };
+    } catch (err) {
+      // An Upstash hiccup should degrade to the DB count, not 500 the request.
+      console.error("checkRateLimit: Upstash error; falling back to DB count:", err);
+    }
   }
 
   // DB fallback: how many searches has this user started in the last hour?
@@ -100,7 +105,65 @@ export async function checkRateLimit(
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .gte("created_at", since);
-  if (error) return { allowed: true, remaining: -1, limit };
+  if (error) {
+    console.error("checkRateLimit: DB fallback count failed; failing open:", error);
+    return { allowed: true, remaining: -1, limit };
+  }
+
+  const used = count ?? 0;
+  return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };
+}
+
+// Follow-up chat (Max-only) is cheaper and more interactive than a full search,
+// so it gets its own generous hourly cap independent of the search budget.
+const CHAT_HOURLY_LIMIT = 120;
+
+let _chatLimiter: Ratelimit | undefined;
+function chatLimiter(): Ratelimit | null {
+  const redis = getRedis();
+  if (!redis) return null;
+  if (!_chatLimiter) {
+    _chatLimiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(CHAT_HOURLY_LIMIT, "1 h"),
+      prefix: "rl:chat",
+    });
+  }
+  return _chatLimiter;
+}
+
+/**
+ * Per-user hourly cap on follow-up chat messages. Mirrors checkRateLimit:
+ * Upstash sliding window when configured, else counts the user's own `messages`
+ * rows in the trailing hour (RLS-scoped). Fails open on error.
+ */
+export async function checkChatRateLimit(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RateLimitResult> {
+  const limit = CHAT_HOURLY_LIMIT;
+
+  const limiter = chatLimiter();
+  if (limiter) {
+    try {
+      const { success, remaining } = await limiter.limit(`u:${userId}`);
+      return { allowed: success, remaining, limit };
+    } catch (err) {
+      console.error("checkChatRateLimit: Upstash error; falling back to DB count:", err);
+    }
+  }
+
+  const since = new Date(Date.now() - HOUR_MS).toISOString();
+  const { count, error } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("role", "user")
+    .gte("created_at", since);
+  if (error) {
+    console.error("checkChatRateLimit: DB fallback count failed; failing open:", error);
+    return { allowed: true, remaining: -1, limit };
+  }
 
   const used = count ?? 0;
   return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };

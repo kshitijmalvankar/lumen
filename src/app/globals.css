@@ -262,7 +262,7 @@
   @apply list-decimal pl-6 space-y-1.5 marker:text-muted-foreground;
 }
 .article strong {
-  @apply font-semibold text-foreground;
+  @apply font-bold text-foreground;
 }
 .article blockquote {
   @apply border-l-2 border-brand/40 pl-4 italic text-muted-foreground;

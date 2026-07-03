@@ -120,7 +120,9 @@ export async function POST(req: Request) {
 
         /* ---------- cache hit: re-use generation, persist for user ---------- */
         const cached = await cacheGet<CachedResult>(cacheKey);
-        if (cached) {
+        // Ignore a legacy empty cache entry and regenerate instead of replaying
+        // a blank article.
+        if (cached && cached.markdown.trim()) {
           send({ type: "status", phase: "cached", message: "Found a recent result" });
           send({ type: "sources", sources: cached.sources });
 
@@ -191,6 +193,19 @@ export async function POST(req: Request) {
         }
 
         const article = parseArticle(markdown, query);
+
+        // Guard against an empty/failed generation: don't persist or cache a
+        // blank article (it would otherwise be replayed for 24h). Surface an
+        // error so the user can retry.
+        if (!article.blocks.some((b) => b.type === "text")) {
+          send({
+            type: "error",
+            message:
+              "The article came back empty. Please try again in a moment.",
+          });
+          await markSearchError(supabase, searchId, "empty article");
+          return;
+        }
 
         /* ----------- AI Analysis (Pro/Max): Lumen's own take ------------- */
         let aiAnalysis: string | null = null;

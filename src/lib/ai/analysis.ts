@@ -1,4 +1,5 @@
 import { getOpenRouter } from "./openrouter";
+import { normalizeAnalysis } from "./analysis-normalize";
 import type { ReasoningEffort } from "./summarize";
 
 const ANALYSIS_SYSTEM = `You are Lumen's analyst. A reader has just finished the cited article below, which was assembled strictly from the numbered sources. Add a brief ANALYSIS that goes BEYOND restating the article: your own interpretation — implications, what to watch next, tensions or caveats, second-order effects, or how the pieces connect.
@@ -13,15 +14,6 @@ function sourcesBlock(
   sources: Array<{ position: number; title: string; domain: string }>,
 ): string {
   return sources.map((s) => `[${s.position}] ${s.title} — ${s.domain}`).join("\n");
-}
-
-/** Strip the NONE sentinel / empty responses down to "". */
-function normalize(raw: string): string {
-  const t = raw.trim();
-  if (!t) return "";
-  // "NONE", possibly wrapped in quotes/punctuation, means "nothing to add".
-  if (t.replace(/[^a-z]/gi, "").toUpperCase() === "NONE") return "";
-  return t;
 }
 
 /**
@@ -59,5 +51,5 @@ ${sourcesBlock(sources)}`;
     reasoning_effort: reasoningEffort,
   });
 
-  return normalize(res.choices?.[0]?.message?.content ?? "");
+  return normalizeAnalysis(res.choices?.[0]?.message?.content ?? "");
 }

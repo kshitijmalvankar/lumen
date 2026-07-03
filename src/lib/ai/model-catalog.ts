@@ -108,3 +108,13 @@ export function modelSlug(id: ModelId): string {
 export function isThinkingModel(id: ModelId): boolean {
   return Boolean(MODEL_CATALOG[id].thinking);
 }
+
+/** Look up catalog metadata by OpenRouter slug (as stored in summaries.model_used). */
+export function modelMetaBySlug(slug: string): ModelMeta | undefined {
+  return Object.values(MODEL_CATALOG).find((m) => m.slug === slug);
+}
+
+/** Whether a stored model slug belongs to a "thinking" model (needs reasoning cap). */
+export function isThinkingSlug(slug: string): boolean {
+  return Boolean(modelMetaBySlug(slug)?.thinking);
+}

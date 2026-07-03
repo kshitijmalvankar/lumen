@@ -39,9 +39,16 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/auth");
   // /api routes guard themselves (and the Stripe webhook has no user session),
-  // so never redirect them to /login.
+  // so never redirect them to /login. Public shared articles (/s/...) must be
+  // readable by logged-out visitors too.
   const isPublic =
-    pathname === "/" || isAuthRoute || pathname.startsWith("/api");
+    pathname === "/" ||
+    isAuthRoute ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/s/") ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/cookies";
 
   // Unauthenticated users hitting a private route → send to /login.
   if (!user && !isPublic) {

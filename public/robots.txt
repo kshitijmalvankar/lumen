@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+# Public share links are for direct sharing, not search indexing.
+Disallow: /s/

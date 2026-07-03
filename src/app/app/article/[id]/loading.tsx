@@ -24,6 +24,19 @@ export default function ArticleLoading() {
           />
         ))}
       </div>
+
+      {/* Sources */}
+      <Skeleton className="mt-12 h-6 w-28" />
+      <div className="mt-4 space-y-2.5">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-xl" />
+        ))}
+      </div>
+
+      {/* Follow-up chat / analysis area */}
+      <Skeleton className="mt-12 h-6 w-40" />
+      <Skeleton className="mt-3 h-4 w-64" />
+      <Skeleton className="mt-4 h-11 w-full rounded-lg" />
     </div>
   );
 }

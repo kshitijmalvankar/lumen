@@ -22,6 +22,7 @@ import {
   resetInterests,
 } from "./actions";
 import { SubmitButton } from "@/components/auth/submit-button";
+import { DeleteAccountButton } from "@/components/settings/delete-account-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
@@ -245,11 +246,11 @@ export default async function SettingsPage({
                   <span className="w-28 shrink-0 truncate text-sm font-medium">
                     {it.topic}
                   </span>
-                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                  <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted-foreground/15">
                     <span
                       className="block h-full rounded-full bg-brand"
                       style={{
-                        width: `${Math.max(6, (it.score / maxInterest) * 100)}%`,
+                        width: `${Math.max(8, (it.score / maxInterest) * 100)}%`,
                       }}
                     />
                   </span>
@@ -263,6 +264,34 @@ export default async function SettingsPage({
             </form>
           </>
         )}
+      </section>
+
+      {/* Data & privacy */}
+      <section className="mt-4 rounded-2xl border bg-card p-6">
+        <h2 className="font-serif text-lg font-semibold tracking-tight">
+          Data &amp; privacy
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Review how your data is handled, or permanently delete your account.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <Link href="/privacy" className="text-brand hover:underline">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="text-brand hover:underline">
+            Terms
+          </Link>
+          <Link href="/cookies" className="text-brand hover:underline">
+            Cookie Notice
+          </Link>
+        </div>
+
+        <div className="mt-5 border-t pt-5">
+          <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
+          <div className="mt-3">
+            <DeleteAccountButton />
+          </div>
+        </div>
       </section>
     </div>
   );

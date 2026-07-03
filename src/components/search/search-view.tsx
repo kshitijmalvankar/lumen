@@ -333,7 +333,7 @@ function PhaseIndicator({ phase }: { phase: string }) {
               key={p}
               className={cn(
                 "h-1 flex-1 rounded-full transition-colors duration-500",
-                reached ? "bg-brand" : "bg-muted",
+                reached ? "bg-brand" : "bg-muted-foreground/20",
               )}
             />
           );
