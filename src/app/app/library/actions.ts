@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { backfillUncategorized } from "@/lib/library/categorize";
 
 /**
  * Toggle a summary's bookmark for the signed-in user. RLS enforces ownership,
@@ -36,4 +37,21 @@ export async function setBookmark(
 
   revalidatePath("/app/library");
   revalidatePath(`/app/article/${summaryId}`);
+}
+
+/**
+ * One-time categorization of the user's existing (uncategorized) articles.
+ * Called once by the library when it detects uncategorized items. Returns the
+ * number processed so the client knows whether to refresh.
+ */
+export async function backfillCategories(): Promise<number> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const n = await backfillUncategorized(supabase, user.id);
+  if (n > 0) revalidatePath("/app/library");
+  return n;
 }

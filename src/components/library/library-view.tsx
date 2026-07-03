@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Library as LibraryIcon,
@@ -9,6 +10,7 @@ import {
   FileText,
   ShieldAlert,
   ArrowUpRight,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,30 +18,57 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { BookmarkButton } from "./bookmark-button";
+import { backfillCategories } from "@/app/app/library/actions";
 import type { LibraryItem } from "@/lib/library/queries";
 
 type Filter = "all" | "saved";
 
 export function LibraryView({ items }: { items: LibraryItem[] }) {
+  const router = useRouter();
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
+  const [category, setCategory] = React.useState<string | null>(null);
+  const [organizing, setOrganizing] = React.useState(false);
 
   const savedCount = React.useMemo(
     () => items.filter((i) => i.bookmarked).length,
     [items],
   );
 
+  // Topic chips: each category with its count, most-used first.
+  const categories = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const i of items) {
+      if (i.category) counts.set(i.category, (counts.get(i.category) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [items]);
+
+  // One-time backfill: categorize any existing articles that have no topic yet.
+  const backfilledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (backfilledRef.current || !items.some((i) => !i.category)) return;
+    backfilledRef.current = true;
+    setOrganizing(true);
+    backfillCategories()
+      .then((n) => {
+        if (n > 0) router.refresh();
+      })
+      .finally(() => setOrganizing(false));
+  }, [items, router]);
+
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter((i) => {
       if (filter === "saved" && !i.bookmarked) return false;
+      if (category && i.category !== category) return false;
       if (!needle) return true;
       return (
         i.title.toLowerCase().includes(needle) ||
         i.query.toLowerCase().includes(needle)
       );
     });
-  }, [items, filter, q]);
+  }, [items, filter, q, category]);
 
   if (items.length === 0) {
     return (
@@ -102,6 +131,31 @@ export function LibraryView({ items }: { items: LibraryItem[] }) {
         </FilterPill>
       </div>
 
+      {(categories.length > 0 || organizing) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {categories.length > 0 && (
+            <CategoryChip active={category === null} onClick={() => setCategory(null)}>
+              All topics
+            </CategoryChip>
+          )}
+          {categories.map(([name, count]) => (
+            <CategoryChip
+              key={name}
+              active={category === name}
+              onClick={() => setCategory(name)}
+            >
+              {name} <span className="opacity-50">{count}</span>
+            </CategoryChip>
+          ))}
+          {organizing && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Organizing by topic…
+            </span>
+          )}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <p className="mt-16 text-center text-sm text-muted-foreground">
           {filter === "saved"
@@ -135,6 +189,30 @@ function FilterPill({
         "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all",
         active
           ? "border-transparent bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CategoryChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        active
+          ? "border-brand/40 bg-brand/10 text-brand"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
@@ -184,6 +262,14 @@ function LibraryCard({ item, index }: { item: LibraryItem; index: number }) {
       )}
 
       <div className="mt-auto flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+        {item.category && (
+          <Badge
+            variant="outline"
+            className="h-5 border-brand/30 px-1.5 text-[0.65rem] font-medium text-brand"
+          >
+            {item.category}
+          </Badge>
+        )}
         {date && <span>{date}</span>}
         <span className="text-border">·</span>
         <span className="inline-flex items-center gap-1">

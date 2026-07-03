@@ -14,7 +14,8 @@ import { streamSummary } from "@/lib/ai/summarize";
 import { generateAnalysis } from "@/lib/ai/analysis";
 import { parseArticle } from "@/lib/ai/parse";
 import { resolveModelId, modelSlug, isThinkingModel } from "@/lib/ai/model-catalog";
-import { getUserTier, TIER_LABEL } from "@/lib/billing/entitlements";
+import { getUserTier, TIER_LABEL, TIER_LIMITS } from "@/lib/billing/entitlements";
+import { categorizeSearch } from "@/lib/library/categorize";
 import { createSearch, markSearchError, persistResult } from "@/lib/search/persist";
 
 export const runtime = "nodejs";
@@ -93,6 +94,20 @@ export async function POST(req: Request) {
       const send = (obj: unknown) =>
         controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
 
+      // Auto-categorize after `done` so it never delays the result. Best-effort.
+      const categorize = async (sid: string, title: string) => {
+        try {
+          await categorizeSearch(supabase, {
+            userId: user.id,
+            searchId: sid,
+            title,
+            query,
+          });
+        } catch (err) {
+          console.error("categorize failed:", err);
+        }
+      };
+
       let searchId: string | undefined;
       try {
         searchId = await createSearch(supabase, {
@@ -136,6 +151,7 @@ export async function POST(req: Request) {
             citationCoverage: article.citationCoverage,
             tier,
           });
+          await categorize(searchId, article.title);
           return;
         }
 
@@ -146,7 +162,9 @@ export async function POST(req: Request) {
         if (inputType === "url") {
           sources = await gatherUrlSource(query);
         } else {
-          sources = await gatherSearchSources(query, { count: 6 });
+          sources = await gatherSearchSources(query, {
+            count: TIER_LIMITS[tier].sources,
+          });
         }
 
         if (sources.length === 0) {
@@ -217,6 +235,7 @@ export async function POST(req: Request) {
           citationCoverage: article.citationCoverage,
           tier,
         });
+        await categorize(searchId, article.title);
       } catch (err) {
         // Log the real error server-side; never leak internals to the client.
         console.error("search route error:", err);

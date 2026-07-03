@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getEntitlement } from "@/lib/billing/entitlements";
 import { getStripe, priceForTier, type PaidTier } from "@/lib/billing/stripe";
@@ -50,4 +51,31 @@ export async function resumeSubscription() {
   if (!subId) redirect("/app/settings");
   await getStripe().subscriptions.update(subId, { cancel_at_period_end: false });
   redirect("/app/settings?status=resumed");
+}
+
+/* --------------------------- personalization ----------------------------- */
+
+/** Turn interest tracking on/off (writes the user's own profile row via RLS). */
+export async function setPersonalization(enabled: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/settings");
+  await supabase
+    .from("profiles")
+    .update({ personalization_enabled: enabled })
+    .eq("id", user.id);
+  revalidatePath("/app/settings");
+}
+
+/** Forget all learned interests. */
+export async function resetInterests() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/settings");
+  await supabase.from("interest_profile").delete().eq("user_id", user.id);
+  revalidatePath("/app/settings");
 }

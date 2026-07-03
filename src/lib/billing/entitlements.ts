@@ -16,11 +16,16 @@ export const TIER_RANK: Record<Tier, number> = {
   max: 2,
 };
 
-// Per-tier hourly search cap (enforced once Upstash rate limiting is enabled).
-export const TIER_LIMITS: Record<Tier, { searchesPerHour: number }> = {
-  free: { searchesPerHour: 10 },
-  pro: { searchesPerHour: 60 },
-  max: { searchesPerHour: 200 },
+// Per-tier limits: hourly search cap + how many web sources a search may gather
+// (the ceiling passed to the web plugin's max_results; it returns up to this
+// many when the topic has them). Higher tiers get deeper sourcing.
+export const TIER_LIMITS: Record<
+  Tier,
+  { searchesPerHour: number; sources: number }
+> = {
+  free: { searchesPerHour: 10, sources: 8 },
+  pro: { searchesPerHour: 60, sources: 12 },
+  max: { searchesPerHour: 200, sources: 16 },
 };
 
 /** True when `tier` is at least `min` (e.g. tierAtLeast(t, "pro")). */

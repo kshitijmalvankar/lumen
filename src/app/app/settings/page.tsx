@@ -8,8 +8,19 @@ import {
   type Tier,
 } from "@/lib/billing/entitlements";
 import { getStripe } from "@/lib/billing/stripe";
+import {
+  getInterests,
+  getPersonalizationEnabled,
+  type Interest,
+} from "@/lib/library/categorize";
 import { openBillingPortal } from "../upgrade/actions";
-import { changePlan, cancelSubscription, resumeSubscription } from "./actions";
+import {
+  changePlan,
+  cancelSubscription,
+  resumeSubscription,
+  setPersonalization,
+  resetInterests,
+} from "./actions";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +53,8 @@ export default async function SettingsPage({
   let periodEnd: string | null = null;
   let hasSubscription = false;
   let cancelAtPeriodEnd = false;
+  let interests: Interest[] = [];
+  let personalizationOn = true;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -54,6 +67,8 @@ export default async function SettingsPage({
       tier = ent.tier;
       periodEnd = ent.currentPeriodEnd;
       hasSubscription = Boolean(ent.stripeSubscriptionId);
+      personalizationOn = await getPersonalizationEnabled(supabase, user.id);
+      interests = personalizationOn ? await getInterests(supabase, user.id) : [];
       if (ent.stripeSubscriptionId && isStripeConfigured()) {
         try {
           const sub = await getStripe().subscriptions.retrieve(
@@ -66,6 +81,8 @@ export default async function SettingsPage({
       }
     }
   }
+
+  const maxInterest = interests[0]?.score ?? 1;
 
   const TierIcon = TIER_ICON[tier];
   const isPaid = tier !== "free";
@@ -190,6 +207,61 @@ export default async function SettingsPage({
             Plan changes are prorated. Cancelling keeps your access until the
             end of the current billing period.
           </p>
+        )}
+      </section>
+
+      {/* Personalization */}
+      <section className="mt-4 rounded-2xl border bg-card p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-lg font-semibold tracking-tight">
+              Your interests
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Lumen learns the topics you read to organize your library and,
+              later, suggest reads. Kept private to you.
+            </p>
+          </div>
+          <form action={setPersonalization.bind(null, !personalizationOn)}>
+            <SubmitButton variant="outline" className="shrink-0">
+              {personalizationOn ? "Turn off" : "Turn on"}
+            </SubmitButton>
+          </form>
+        </div>
+
+        {!personalizationOn ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Personalization is off — Lumen isn&apos;t tracking your interests.
+          </p>
+        ) : interests.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No interests yet — they build up as you read more articles.
+          </p>
+        ) : (
+          <>
+            <ul className="mt-4 space-y-2.5">
+              {interests.map((it) => (
+                <li key={it.topic} className="flex items-center gap-3">
+                  <span className="w-28 shrink-0 truncate text-sm font-medium">
+                    {it.topic}
+                  </span>
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <span
+                      className="block h-full rounded-full bg-brand"
+                      style={{
+                        width: `${Math.max(6, (it.score / maxInterest) * 100)}%`,
+                      }}
+                    />
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <form action={resetInterests} className="mt-5">
+              <SubmitButton variant="ghost" className="text-muted-foreground">
+                Reset interests
+              </SubmitButton>
+            </form>
+          </>
         )}
       </section>
     </div>

@@ -11,6 +11,7 @@ export interface LibraryItem {
   citationCoverage: number | null;
   sourceCount: number;
   bookmarked: boolean;
+  category: string | null;
 }
 
 export interface ArticleData {
@@ -54,7 +55,7 @@ export async function listLibrary(
   const { data, error } = await supabase
     .from("summaries")
     .select(
-      "id, title, created_at, length_kind, citation_coverage, searches!inner(query, input_type), sources(count)",
+      "id, title, created_at, length_kind, citation_coverage, searches!inner(id, query, input_type), sources(count)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(`listLibrary: ${error.message}`);
@@ -65,13 +66,28 @@ export async function listLibrary(
   if (bmErr) throw new Error(`listLibrary bookmarks: ${bmErr.message}`);
   const bookmarked = new Set((bm ?? []).map((b) => b.summary_id as string));
 
+  // Category per search, fetched separately (robust vs. a deep nested embed).
+  const { data: catData } = await supabase
+    .from("search_categories")
+    .select("search_id, categories(name)");
+  const categoryBySearch = new Map<string, string>();
+  for (const r of catData ?? []) {
+    const name = one(
+      (r as { categories?: { name?: string } | { name?: string }[] }).categories,
+    )?.name;
+    if (name) categoryBySearch.set(r.search_id as string, name);
+  }
+
   return (data ?? []).map((row) => {
     const r = row as Record<string, unknown>;
     const search = one(
-      r.searches as { query?: string; input_type?: string } | null,
+      r.searches as { id?: string; query?: string; input_type?: string } | null,
     );
     const sourceCount =
       one(r.sources as { count?: number } | null)?.count ?? 0;
+    const category = search?.id
+      ? (categoryBySearch.get(search.id) ?? null)
+      : null;
     return {
       summaryId: r.id as string,
       title: (r.title as string) ?? "Untitled",
@@ -82,6 +98,7 @@ export async function listLibrary(
       citationCoverage: (r.citation_coverage as number | null) ?? null,
       sourceCount,
       bookmarked: bookmarked.has(r.id as string),
+      category,
     };
   });
 }

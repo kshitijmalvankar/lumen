@@ -57,7 +57,7 @@ export async function gatherSearchSources(
   query: string,
   opts: { count?: number } = {},
 ): Promise<PreparedSource[]> {
-  const { count = 6 } = opts;
+  const { count = 8 } = opts;
   requireEnv("openrouterApiKey");
 
   const res = await fetch(`${env.openrouterBaseUrl}/chat/completions`, {
