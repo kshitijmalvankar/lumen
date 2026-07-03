@@ -50,7 +50,7 @@ export function SourceList({ sources }: { sources: SourceMeta[] }) {
             <li
               key={s.position}
               id={`source-${s.position}`}
-              className="scroll-mt-24 rounded-xl border bg-card p-3.5 transition-colors hover:border-brand/40"
+              className="scroll-mt-24 rounded-xl border border-border/70 bg-card/60 p-3.5 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-brand/40"
             >
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand/10 text-xs font-semibold text-brand">

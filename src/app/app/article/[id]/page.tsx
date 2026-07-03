@@ -14,6 +14,7 @@ import { BookmarkButton } from "@/components/library/bookmark-button";
 import { ShareButton } from "@/components/share/share-button";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
 import { FollowUpChat, FollowUpChatLocked } from "@/components/chat/follow-up-chat";
+import { ReadingProgress } from "@/components/reader/reading-progress";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -48,9 +49,11 @@ export default async function ArticlePage({
   const date = formatDate(article.createdAt);
 
   return (
-    <article className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <Link
-        href="/app/library"
+    <>
+      <ReadingProgress />
+      <article className="mx-auto max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <Link
+          href="/app/library"
         className={cn(
           buttonVariants({ variant: "ghost", size: "sm" }),
           "-ml-2 text-muted-foreground",
@@ -62,7 +65,7 @@ export default async function ArticlePage({
 
       <header className="mt-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <h1 className="min-w-0 font-serif text-3xl font-semibold leading-[1.1] tracking-tight sm:text-4xl">
+          <h1 className="min-w-0 text-balance font-serif text-[1.75rem] font-semibold leading-[1.12] tracking-tight sm:text-4xl">
             {article.title}
           </h1>
           <div className="flex shrink-0 items-center gap-2 sm:mt-1">
@@ -130,6 +133,7 @@ export default async function ArticlePage({
         any claim. Informational only, not professional (medical, legal, or
         financial) advice.
       </p>
-    </article>
+      </article>
+    </>
   );
 }

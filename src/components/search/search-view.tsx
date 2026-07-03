@@ -199,7 +199,8 @@ export function SearchView({
             <Sparkles className="h-3.5 w-3.5 text-brand" /> Research, distilled
           </span>
           <h1 className="mt-5 max-w-2xl text-balance font-serif text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl">
-            What do you want to understand?
+            What do you want to{" "}
+            <span className="text-gradient">understand?</span>
           </h1>
           <p className="mt-3 max-w-md text-balance text-muted-foreground">
             Lumen reads credible sources and writes one clear, cited article —
@@ -210,7 +211,7 @@ export function SearchView({
 
       <form
         onSubmit={onSubmit}
-        className="focus-glow relative mx-auto flex max-w-2xl items-center rounded-2xl border bg-card shadow-sm transition-shadow"
+        className="focus-glow glass relative mx-auto flex max-w-2xl items-center rounded-2xl transition-shadow"
       >
         <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -313,7 +314,7 @@ export function SearchView({
 
           {status === "done" && info && (
             <>
-              <div className="mt-10 flex items-center gap-2 rounded-xl border bg-muted/40 p-3 pl-4">
+              <div className="glass mt-10 flex items-center gap-2 rounded-xl p-3 pl-4">
                 <Sparkles className="h-4 w-4 text-brand" />
                 <span className="text-sm text-muted-foreground">
                   Saved to your library

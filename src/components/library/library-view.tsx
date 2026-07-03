@@ -248,7 +248,7 @@ function LibraryCard({ item, index }: { item: LibraryItem; index: number }) {
 
   return (
     <li
-      className="lift group relative flex min-w-0 animate-in flex-col gap-3 rounded-xl border bg-card p-5 fade-in slide-in-from-bottom-1 fill-mode-both hover:border-brand/40"
+      className="lift group relative flex min-w-0 animate-in flex-col gap-3 rounded-xl border border-border/70 bg-card/60 p-5 backdrop-blur-md fade-in slide-in-from-bottom-1 fill-mode-both hover:border-brand/40"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <Link

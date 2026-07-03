@@ -232,7 +232,8 @@
 
 /* ---------- Article typography (editorial: serif headings) ---------------- */
 .article {
-  @apply text-[1.05rem] leading-[1.75] text-foreground/90;
+  @apply text-[1rem] leading-[1.7] text-foreground/90 sm:text-[1.06rem] sm:leading-[1.78];
+  overflow-wrap: break-word;
 }
 .article > * + * {
   @apply mt-5;
@@ -244,16 +245,16 @@
   font-optical-sizing: auto;
 }
 .article h1 {
-  @apply text-3xl font-semibold mt-10;
+  @apply text-2xl font-semibold mt-10 text-balance sm:text-3xl;
 }
 .article h2 {
-  @apply text-2xl font-semibold mt-10;
+  @apply text-xl font-semibold mt-10 text-balance sm:text-2xl;
 }
 .article h3 {
-  @apply text-xl font-semibold mt-8;
+  @apply text-lg font-semibold mt-8 sm:text-xl;
 }
 .article p {
-  @apply text-foreground/85;
+  @apply text-pretty text-foreground/85;
 }
 .article ul {
   @apply list-disc pl-6 space-y-1.5 marker:text-muted-foreground;
@@ -274,4 +275,77 @@
 /* Inline citation badge */
 .citation {
   @apply ml-0.5 inline-flex h-[1.05em] min-w-[1.05em] items-center justify-center rounded-[5px] bg-brand/12 px-1 align-super text-[0.62em] font-semibold text-brand no-underline transition-colors hover:bg-brand hover:text-brand-foreground;
+}
+
+/* ---------- Bolder-modern surfaces, gradients & motion -------------------- */
+
+/* Frosted-glass surface for cards, bars, and popovers. */
+.glass {
+  background: color-mix(in oklch, var(--card) 70%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid color-mix(in oklch, var(--foreground) 9%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
+    0 12px 32px -20px oklch(0 0 0 / 0.4);
+}
+.dark .glass {
+  background: color-mix(in oklch, var(--card) 55%, transparent);
+  border-color: oklch(1 0 0 / 0.08);
+}
+
+/* Brand gradient text for display headings. */
+.text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--brand),
+    color-mix(in oklch, var(--brand) 45%, oklch(0.72 0.18 330))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Soft brand glow for primary CTAs / focal elements. */
+.glow-brand {
+  box-shadow: 0 14px 44px -16px color-mix(in oklch, var(--brand) 60%, transparent);
+}
+
+/* Gradient hairline ring for featured cards (drawn with a masked border). */
+.gradient-ring {
+  position: relative;
+}
+.gradient-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--brand) 55%, transparent),
+    transparent 45%,
+    color-mix(in oklch, oklch(0.72 0.18 330) 45%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Reader scroll-progress fill — width driven inline via style. */
+.read-progress {
+  background: linear-gradient(
+    90deg,
+    var(--brand),
+    color-mix(in oklch, var(--brand) 50%, oklch(0.72 0.18 330))
+  );
+  transition: width 0.1s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .read-progress {
+    transition: none;
+  }
 }

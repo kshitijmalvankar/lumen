@@ -28,9 +28,19 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-6 py-3">
+    <div className="relative flex min-h-full flex-col">
+      {/* Ambient aurora — subtle, static, sits behind all app content. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden opacity-70 dark:opacity-50"
+      >
+        <div className="absolute -left-24 -top-28 h-72 w-72 rounded-full bg-brand/25 blur-[100px]" />
+        <div className="absolute right-[-12%] top-16 h-80 w-80 rounded-full bg-violet-500/20 blur-[120px]" />
+        <div className="absolute bottom-[-12%] left-1/3 h-72 w-72 rounded-full bg-sky-400/15 blur-[120px]" />
+      </div>
+
+      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/60 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-5">
             <Link href="/app" className="group flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand text-brand-foreground shadow-sm transition-transform group-hover:scale-105">
@@ -54,7 +64,7 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         {children}
       </main>
     </div>
