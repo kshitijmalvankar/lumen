@@ -40,7 +40,12 @@ function domainOf(url: string): string {
   }
 }
 
-const PROMPT_CONTENT_CAP = 3500; // chars per source fed to the model
+const PROMPT_CONTENT_CAP = 3500; // max chars per source fed to the model
+// Keep the combined context bounded so generation stays within the function's
+// time budget. With many sources each gets a smaller slice (16 → ~1750 chars),
+// which speeds up higher tiers without dropping any sources. Free (8) is
+// unaffected (28000 / 8 = 3500).
+const TOTAL_CONTENT_BUDGET = 28000;
 
 interface UrlCitation {
   url?: string;
@@ -59,6 +64,11 @@ export async function gatherSearchSources(
 ): Promise<PreparedSource[]> {
   const { count = 8 } = opts;
   requireEnv("openrouterApiKey");
+  // Per-source cap scales down as the source count grows, bounding total context.
+  const perSourceCap = Math.min(
+    PROMPT_CONTENT_CAP,
+    Math.floor(TOTAL_CONTENT_BUDGET / count),
+  );
 
   const res = await fetch(`${env.openrouterBaseUrl}/chat/completions`, {
     method: "POST",
@@ -110,7 +120,7 @@ export async function gatherSearchSources(
       publishedAt: null, // web plugin doesn't return a reliable date
       credibilityTier: scoreCredibility(domain),
       snippet: content.slice(0, 200),
-      content: (content || c.title || "").slice(0, PROMPT_CONTENT_CAP),
+      content: (content || c.title || "").slice(0, perSourceCap),
     });
     if (out.length >= count) break;
   }

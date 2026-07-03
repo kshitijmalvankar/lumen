@@ -20,7 +20,9 @@ import { createSearch, markSearchError, persistResult } from "@/lib/search/persi
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Max searches (Opus + deep sourcing + analysis) can run long. 300s needs a
+// Vercel plan that allows it (Pro); Hobby clamps this to its 60s ceiling.
+export const maxDuration = 300;
 
 const bodySchema = z.object({
   query: z.string().trim().min(2).max(500),
@@ -207,38 +209,22 @@ export async function POST(req: Request) {
           return;
         }
 
-        /* ----------- AI Analysis (Pro/Max): Lumen's own take ------------- */
-        let aiAnalysis: string | null = null;
-        if (tier !== "free") {
-          send({ type: "status", phase: "analyzing", message: "Adding AI analysis" });
-          try {
-            const text = await generateAnalysis({
-              model,
-              query,
-              articleMarkdown: markdown,
-              sources: sourceMeta,
-              reasoningEffort,
-            });
-            aiAnalysis = text || null;
-          } catch (err) {
-            // Best-effort — never fail the search because analysis failed.
-            console.error("analysis pass failed:", err);
-          }
-          if (aiAnalysis) send({ type: "analysis", text: aiAnalysis });
-        }
-
+        /* -------- Persist the article NOW, before the slow analysis -------- */
+        // Saving here (not after AI Analysis) guarantees the article lands in
+        // the library and the reader/chat work — even if the analysis pass is
+        // slow or the serverless function is cut short by its time limit.
         const summaryId = await persistResult(supabase, {
           userId: user.id,
           searchId,
           article,
           sources,
           modelUsed: model,
-          aiAnalysis,
+          aiAnalysis: null,
         });
 
         await cacheSet<CachedResult>(
           cacheKey,
-          { title: article.title, markdown, sources: sourceMeta, aiAnalysis },
+          { title: article.title, markdown, sources: sourceMeta, aiAnalysis: null },
           CACHE_TTL_SECONDS,
         );
 
@@ -251,6 +237,34 @@ export async function POST(req: Request) {
           tier,
         });
         await categorize(searchId, article.title);
+
+        /* ------ AI Analysis (Pro/Max): best-effort, streams after done ----- */
+        if (tier !== "free") {
+          try {
+            const text = await generateAnalysis({
+              model,
+              query,
+              articleMarkdown: markdown,
+              sources: sourceMeta,
+              reasoningEffort,
+            });
+            if (text) {
+              send({ type: "analysis", text });
+              await supabase
+                .from("summaries")
+                .update({ ai_analysis: text })
+                .eq("id", summaryId);
+              await cacheSet<CachedResult>(
+                cacheKey,
+                { title: article.title, markdown, sources: sourceMeta, aiAnalysis: text },
+                CACHE_TTL_SECONDS,
+              );
+            }
+          } catch (err) {
+            // Never fail the (already-saved) search because analysis failed.
+            console.error("analysis pass failed:", err);
+          }
+        }
       } catch (err) {
         // Log the real error server-side; never leak internals to the client.
         console.error("search route error:", err);

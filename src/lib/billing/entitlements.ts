@@ -18,14 +18,19 @@ export const TIER_RANK: Record<Tier, number> = {
 
 // Per-tier limits: hourly search cap + how many web sources a search may gather
 // (the ceiling passed to the web plugin's max_results; it returns up to this
-// many when the topic has them). Higher tiers get deeper sourcing.
+// many when the topic has them).
+//
+// Source depth is a flat 7 across all tiers for now: on the current Vercel plan
+// (60s function limit) deeper sourcing makes Opus/Max searches exceed the limit
+// and get cut off. Tiers differ by MODEL only. Raise per-tier once on a Vercel
+// plan with a higher function-time limit (Pro = 300s).
 export const TIER_LIMITS: Record<
   Tier,
   { searchesPerHour: number; sources: number }
 > = {
-  free: { searchesPerHour: 10, sources: 8 },
-  pro: { searchesPerHour: 60, sources: 12 },
-  max: { searchesPerHour: 200, sources: 16 },
+  free: { searchesPerHour: 10, sources: 7 },
+  pro: { searchesPerHour: 60, sources: 7 },
+  max: { searchesPerHour: 200, sources: 7 },
 };
 
 /** True when `tier` is at least `min` (e.g. tierAtLeast(t, "pro")). */

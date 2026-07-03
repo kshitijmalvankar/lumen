@@ -9,7 +9,8 @@ import { modelSlug, isThinkingSlug } from "@/lib/ai/model-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Opus replies can run long; 300s needs Vercel Pro (Hobby clamps to 60s).
+export const maxDuration = 300;
 
 const bodySchema = z.object({
   summaryId: z.string().uuid(),
