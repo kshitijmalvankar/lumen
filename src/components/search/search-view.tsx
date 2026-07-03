@@ -19,6 +19,7 @@ import { SourceList, type SourceMeta } from "./source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
 import { ModelPicker } from "./model-picker";
+import { SuggestedPrompts } from "@/components/suggestions/suggested-prompts";
 import { defaultModelId, type ModelId } from "@/lib/ai/model-catalog";
 import type { Tier } from "@/lib/billing/entitlements";
 
@@ -48,7 +49,15 @@ const PHASE_LABEL: Record<string, string> = {
   cached: "Found a recent result",
 };
 
-export function SearchView({ tier }: { tier: Tier }) {
+export function SearchView({
+  tier,
+  personalizationEnabled = true,
+  initialQuery = null,
+}: {
+  tier: Tier;
+  personalizationEnabled?: boolean;
+  initialQuery?: string | null;
+}) {
   const [input, setInput] = React.useState("");
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<Status>("idle");
@@ -158,6 +167,16 @@ export function SearchView({ tier }: { tier: Tier }) {
     }
   }, [model]);
 
+  // Deep-link support: /app?q=… (e.g. a suggestion clicked from the library)
+  // pre-fills and runs the search once on mount.
+  const ranInitialRef = React.useRef(false);
+  React.useEffect(() => {
+    if (ranInitialRef.current || !initialQuery) return;
+    ranInitialRef.current = true;
+    setInput(initialQuery);
+    run(initialQuery);
+  }, [initialQuery, run]);
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     run(input);
@@ -227,6 +246,18 @@ export function SearchView({ tier }: { tier: Tier }) {
           disabled={isRunning}
         />
       </div>
+
+      {isIdle && (
+        <SuggestedPrompts
+          tier={tier}
+          personalizationEnabled={personalizationEnabled}
+          onPick={(q) => {
+            setInput(q);
+            run(q);
+          }}
+          className="mx-auto mt-6 max-w-2xl"
+        />
+      )}
 
       {isIdle && (
         <div className="mx-auto mt-5 flex max-w-2xl flex-wrap justify-center gap-2">

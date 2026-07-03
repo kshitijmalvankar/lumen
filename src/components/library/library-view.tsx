@@ -18,12 +18,22 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { BookmarkButton } from "./bookmark-button";
+import { SuggestedPrompts } from "@/components/suggestions/suggested-prompts";
 import { backfillCategories } from "@/app/app/library/actions";
 import type { LibraryItem } from "@/lib/library/queries";
+import type { Tier } from "@/lib/billing/entitlements";
 
 type Filter = "all" | "saved";
 
-export function LibraryView({ items }: { items: LibraryItem[] }) {
+export function LibraryView({
+  items,
+  tier,
+  personalizationEnabled,
+}: {
+  items: LibraryItem[];
+  tier: Tier;
+  personalizationEnabled: boolean;
+}) {
   const router = useRouter();
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
@@ -155,6 +165,13 @@ export function LibraryView({ items }: { items: LibraryItem[] }) {
           )}
         </div>
       )}
+
+      <SuggestedPrompts
+        tier={tier}
+        personalizationEnabled={personalizationEnabled}
+        onPick={(query) => router.push(`/app?q=${encodeURIComponent(query)}`)}
+        className="mt-6 border-t pt-6"
+      />
 
       {filtered.length === 0 ? (
         <p className="mt-16 text-center text-sm text-muted-foreground">
