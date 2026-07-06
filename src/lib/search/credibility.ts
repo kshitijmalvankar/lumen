@@ -1,5 +1,15 @@
 export type CredibilityTier = "high" | "medium" | "low" | "unknown";
 
+// Global, generic left↔right spectrum (Lumen's estimate). "unknown" = not a
+// political/news outlet or genuinely unclear.
+export type PoliticalLean =
+  | "left"
+  | "lean-left"
+  | "center"
+  | "lean-right"
+  | "right"
+  | "unknown";
+
 // Lightweight, transparent heuristic. Not exhaustive — a starting point that
 // can be tuned or replaced with a real reputation source later.
 const HIGH_DOMAINS = new Set([
@@ -61,7 +71,7 @@ const MEDIUM_DOMAINS = new Set([
   "news18.com",
 ]);
 
-function rootDomain(domain: string): string {
+export function rootDomain(domain: string): string {
   const d = domain.replace(/^www\./, "").toLowerCase();
   const parts = d.split(".");
   // Keep the last two labels for the common case (example.com).

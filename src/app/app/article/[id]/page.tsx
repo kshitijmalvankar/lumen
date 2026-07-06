@@ -13,6 +13,7 @@ import {
 import { getUserTier, TIER_LIMITS } from "@/lib/billing/entitlements";
 import { CitationMarkdown } from "@/components/search/citation-markdown";
 import { TrustPanel } from "@/components/reader/trust-panel";
+import { RatingsEnricher } from "@/components/reader/ratings-enricher";
 import { SourceList } from "@/components/search/source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
 import { ShareButton } from "@/components/share/share-button";
@@ -132,6 +133,14 @@ export default async function ArticlePage({
           sources={article.sources}
           citationCoverage={article.citationCoverage}
         />
+        <div className="no-print">
+          <RatingsEnricher
+            summaryId={article.summaryId}
+            hasUnrated={article.sources.some(
+              (s) => (s.politicalLean ?? "unknown") === "unknown" && !!s.domain,
+            )}
+          />
+        </div>
 
         <div className="mt-8">
           <CitationMarkdown markdown={article.bodyMarkdown} markUnsourced />

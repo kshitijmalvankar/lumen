@@ -5,6 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { isSafeHttpUrl } from "@/lib/url";
 
+export type PoliticalLean =
+  | "left"
+  | "lean-left"
+  | "center"
+  | "lean-right"
+  | "right"
+  | "unknown";
+
 export interface SourceMeta {
   position: number;
   title: string;
@@ -12,6 +20,7 @@ export interface SourceMeta {
   domain: string;
   publishedAt: string | null;
   credibilityTier: "high" | "medium" | "low" | "unknown";
+  politicalLean?: PoliticalLean;
   snippet?: string;
 }
 
@@ -28,6 +37,28 @@ function tierClass(tier: SourceMeta["credibilityTier"]): string {
       return "border-emerald-600/30 text-emerald-700 dark:text-emerald-400";
     case "medium":
       return "border-amber-600/30 text-amber-700 dark:text-amber-400";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+const LEAN_LABEL: Record<PoliticalLean, string> = {
+  left: "Left",
+  "lean-left": "Lean left",
+  center: "Center",
+  "lean-right": "Lean right",
+  right: "Right",
+  unknown: "Unknown",
+};
+
+function leanClass(lean: PoliticalLean): string {
+  switch (lean) {
+    case "left":
+    case "lean-left":
+      return "border-blue-600/30 text-blue-700 dark:text-blue-400";
+    case "right":
+    case "lean-right":
+      return "border-red-600/30 text-red-700 dark:text-red-400";
     default:
       return "text-muted-foreground";
   }
@@ -84,6 +115,17 @@ export function SourceList({ sources }: { sources: SourceMeta[] }) {
                     >
                       {TIER_LABEL[s.credibilityTier]}
                     </Badge>
+                    {s.politicalLean && s.politicalLean !== "unknown" && (
+                      <Badge
+                        variant="outline"
+                        title="Lumen's estimate of the outlet's typical leaning"
+                        className={`h-5 px-1.5 text-[0.65rem] ${leanClass(
+                          s.politicalLean,
+                        )}`}
+                      >
+                        {LEAN_LABEL[s.politicalLean]}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>

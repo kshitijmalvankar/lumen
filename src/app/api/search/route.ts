@@ -302,6 +302,7 @@ function toMeta(s: PreparedSource): SourceMeta {
     domain: s.domain,
     publishedAt: s.publishedAt,
     credibilityTier: s.credibilityTier,
+    politicalLean: s.politicalLean,
     snippet: s.snippet,
   };
 }

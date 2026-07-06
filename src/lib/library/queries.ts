@@ -133,7 +133,7 @@ export async function getArticle(
     supabase
       .from("sources")
       .select(
-        "position, title, url, domain, published_at, credibility_tier, snippet",
+        "position, title, url, domain, published_at, credibility_tier, political_lean, snippet",
       )
       .eq("summary_id", summaryId)
       .order("position", { ascending: true }),
@@ -161,6 +161,8 @@ export async function getArticle(
       publishedAt: (row.published_at as string | null) ?? null,
       credibilityTier:
         (row.credibility_tier as SourceMeta["credibilityTier"]) ?? "unknown",
+      politicalLean:
+        (row.political_lean as SourceMeta["politicalLean"]) ?? "unknown",
       snippet: (row.snippet as string | undefined) ?? undefined,
     };
   });

@@ -25,6 +25,9 @@ exception when duplicate_object then null; end $$;
 do $$ begin create type credibility_tier as enum ('high','medium','low','unknown');
 exception when duplicate_object then null; end $$;
 
+do $$ begin create type political_lean as enum ('left','lean-left','center','lean-right','right','unknown');
+exception when duplicate_object then null; end $$;
+
 do $$ begin create type message_role as enum ('user','assistant');
 exception when duplicate_object then null; end $$;
 
@@ -107,9 +110,27 @@ create table if not exists public.sources (
   domain           text,
   published_at     timestamptz,
   credibility_tier credibility_tier not null default 'unknown',
+  political_lean   political_lean not null default 'unknown',
   snippet          text
 );
+-- Idempotent add for databases created before political_lean existed.
+alter table public.sources add column if not exists political_lean political_lean not null default 'unknown';
 create index if not exists sources_summary_idx on public.sources (summary_id, position);
+
+-- Shared, self-growing source-reputation table: dynamic credibility + political
+-- lean per domain (Lumen's own estimate). NOT user-scoped. Written only by the
+-- service-role client; RLS is enabled with NO user policy, so normal users can't
+-- read or write it directly — all access goes through trusted server code.
+create table if not exists public.source_ratings (
+  domain           text primary key,
+  credibility_tier credibility_tier not null default 'unknown',
+  political_lean   political_lean not null default 'unknown',
+  confidence       real,
+  rated_by         text not null default 'llm',   -- 'seed' | 'llm' | 'manual'
+  rated_at         timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+alter table public.source_ratings enable row level security;
 
 create table if not exists public.block_citations (
   id         uuid primary key default gen_random_uuid(),

@@ -170,6 +170,40 @@ export async function checkAudioRateLimit(
   return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };
 }
 
+// Source-ratings enrichment (any signed-in user) is cheap and cached, so it only
+// needs a light abuse guard. Upstash sliding window when configured; otherwise
+// fails open (the work is one cheap Haiku call, cached forever after).
+const RATINGS_HOURLY_LIMIT = 100;
+
+let _ratingsLimiter: Ratelimit | undefined;
+function ratingsLimiter(): Ratelimit | null {
+  const redis = getRedis();
+  if (!redis) return null;
+  if (!_ratingsLimiter) {
+    _ratingsLimiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(RATINGS_HOURLY_LIMIT, "1 h"),
+      prefix: "rl:ratings",
+    });
+  }
+  return _ratingsLimiter;
+}
+
+export async function checkRatingsRateLimit(
+  userId: string,
+): Promise<RateLimitResult> {
+  const limit = RATINGS_HOURLY_LIMIT;
+  const limiter = ratingsLimiter();
+  if (!limiter) return { allowed: true, remaining: -1, limit };
+  try {
+    const { success, remaining } = await limiter.limit(`u:${userId}`);
+    return { allowed: success, remaining, limit };
+  } catch (err) {
+    console.error("checkRatingsRateLimit: Upstash error; failing open:", err);
+    return { allowed: true, remaining: -1, limit };
+  }
+}
+
 // Follow-up chat (Max-only) is cheaper and more interactive than a full search,
 // so it gets its own generous hourly cap independent of the search budget.
 const CHAT_HOURLY_LIMIT = 120;

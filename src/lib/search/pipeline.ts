@@ -1,6 +1,11 @@
 import { env, requireEnv } from "@/lib/env";
 import { categorizeModel } from "@/lib/ai/models";
-import { scoreCredibility, type CredibilityTier } from "./credibility";
+import {
+  scoreCredibility,
+  type CredibilityTier,
+  type PoliticalLean,
+} from "./credibility";
+import { rateSourcesFast } from "./ratings";
 import { extractContent } from "@/lib/extract/jina";
 
 export type InputType = "keyword" | "url";
@@ -12,8 +17,21 @@ export interface PreparedSource {
   domain: string;
   publishedAt: string | null;
   credibilityTier: CredibilityTier;
+  politicalLean: PoliticalLean;
   snippet: string;
   content: string; // body used for summarization
+}
+
+/** Apply the fast (LLM-free) rating — table + hardcoded floor — to a source set. */
+async function applyFastRatings(sources: PreparedSource[]): Promise<void> {
+  const ratings = await rateSourcesFast(sources.map((s) => s.domain));
+  for (const s of sources) {
+    const r = ratings.get(s.domain);
+    if (r) {
+      s.credibilityTier = r.credibilityTier;
+      s.politicalLean = r.politicalLean;
+    }
+  }
 }
 
 /** Normalize a query for cache keys and dedup (not for display). */
@@ -119,11 +137,15 @@ export async function gatherSearchSources(
       domain,
       publishedAt: null, // web plugin doesn't return a reliable date
       credibilityTier: scoreCredibility(domain),
+      politicalLean: "unknown",
       snippet: content.slice(0, 200),
       content: (content || c.title || "").slice(0, perSourceCap),
     });
     if (out.length >= count) break;
   }
+  // One batched, LLM-free rating pass (table + floor). Enriching unknown domains
+  // with the LLM happens later in the separate /api/ratings/classify request.
+  await applyFastRatings(out);
   return out;
 }
 
@@ -136,7 +158,7 @@ export async function gatherUrlSource(
   const extracted = await extractContent(url);
   if (!extracted || !extracted.content.trim()) return [];
 
-  return [
+  const sources: PreparedSource[] = [
     {
       position: 1,
       title: extracted.title || domain || url,
@@ -144,8 +166,11 @@ export async function gatherUrlSource(
       domain,
       publishedAt: extracted.publishedAt,
       credibilityTier: scoreCredibility(domain),
+      politicalLean: "unknown",
       snippet: extracted.content.slice(0, 200),
       content: extracted.content.slice(0, PROMPT_CONTENT_CAP * 2),
     },
   ];
+  await applyFastRatings(sources);
+  return sources;
 }

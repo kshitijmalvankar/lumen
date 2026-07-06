@@ -93,6 +93,7 @@ export async function persistResult(
         domain: s.domain,
         published_at: toIso(s.publishedAt),
         credibility_tier: s.credibilityTier,
+        political_lean: s.politicalLean,
         snippet: s.snippet,
       })),
     )
