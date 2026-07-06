@@ -207,6 +207,29 @@ create table if not exists public.usage_quota (
 );
 create unique index if not exists usage_user_period_idx on public.usage_quota (user_id, period);
 
+-- Generated single-narrator audio overviews (Hume Octave TTS). One per summary;
+-- `segments` holds [{ index, text, path }] where path points into the private
+-- `audio` storage bucket. Staged across serverless invocations, so status walks
+-- pending → synthesizing → ready (or error).
+create table if not exists public.audio_overviews (
+  id         uuid primary key default gen_random_uuid(),
+  summary_id uuid not null references public.summaries(id) on delete cascade,
+  user_id    uuid not null,
+  status     text not null default 'synthesizing',
+  script     text,
+  segments   jsonb not null default '[]'::jsonb,
+  error      text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists audio_overviews_summary_idx on public.audio_overviews (summary_id);
+
+-- Private bucket for generated audio; served via short-lived signed URLs from
+-- the service-role client (no public access).
+insert into storage.buckets (id, name, public)
+values ('audio', 'audio', false)
+on conflict (id) do nothing;
+
 -- ---------- Row-Level Security ---------------------------------------------
 -- Every per-user table is scoped to its owner via user_id = auth.uid().
 do $$
@@ -215,7 +238,8 @@ begin
   foreach t in array array[
     'searches','summaries','summary_blocks','sources','block_citations',
     'messages','categories','search_categories','search_tags','tags',
-    'bookmarks','shares','interest_profile','suggestions','usage_quota'
+    'bookmarks','shares','interest_profile','suggestions','usage_quota',
+    'audio_overviews'
   ]
   loop
     execute format('alter table public.%I enable row level security;', t);

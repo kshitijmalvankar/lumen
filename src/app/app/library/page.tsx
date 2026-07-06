@@ -2,6 +2,10 @@ import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { listLibrary } from "@/lib/library/queries";
+import {
+  listCollections,
+  getCollectionMembership,
+} from "@/lib/library/collections";
 import { getUserTier, type Tier } from "@/lib/billing/entitlements";
 import { getPersonalizationEnabled } from "@/lib/library/categorize";
 import { LibraryView } from "@/components/library/library-view";
@@ -32,13 +36,19 @@ export default async function LibraryPage() {
     tier = await getUserTier(supabase, user.id);
     personalization = await getPersonalizationEnabled(supabase, user.id);
   }
-  const items = await listLibrary(supabase);
+  const [items, collections, membership] = await Promise.all([
+    listLibrary(supabase),
+    listCollections(supabase),
+    getCollectionMembership(supabase),
+  ]);
 
   return (
     <LibraryView
       items={items}
       tier={tier}
       personalizationEnabled={personalization}
+      collections={collections}
+      membership={membership}
     />
   );
 }

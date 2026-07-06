@@ -26,11 +26,13 @@ export const TIER_RANK: Record<Tier, number> = {
 // plan with a higher function-time limit (Pro = 300s).
 export const TIER_LIMITS: Record<
   Tier,
-  { searchesPerHour: number; sources: number }
+  { searchesPerHour: number; sources: number; collections: number }
 > = {
-  free: { searchesPerHour: 10, sources: 7 },
-  pro: { searchesPerHour: 60, sources: 7 },
-  max: { searchesPerHour: 200, sources: 7 },
+  // `collections` caps how many library collections a user can create.
+  // Free is limited to nudge upgrades; paid tiers are effectively unlimited.
+  free: { searchesPerHour: 10, sources: 7, collections: 3 },
+  pro: { searchesPerHour: 60, sources: 7, collections: Infinity },
+  max: { searchesPerHour: 200, sources: 7, collections: Infinity },
 };
 
 /** True when `tier` is at least `min` (e.g. tierAtLeast(t, "pro")). */

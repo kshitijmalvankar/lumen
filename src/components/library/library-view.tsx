@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   ArrowUpRight,
   Loader2,
+  Folder,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { BookmarkButton } from "./bookmark-button";
 import { SuggestedPrompts } from "@/components/suggestions/suggested-prompts";
 import { backfillCategories } from "@/app/app/library/actions";
 import type { LibraryItem } from "@/lib/library/queries";
+import type { CollectionWithCount } from "@/lib/library/collections";
 import type { Tier } from "@/lib/billing/entitlements";
 
 type Filter = "all" | "saved";
@@ -29,15 +31,21 @@ export function LibraryView({
   items,
   tier,
   personalizationEnabled,
+  collections,
+  membership,
 }: {
   items: LibraryItem[];
   tier: Tier;
   personalizationEnabled: boolean;
+  collections: CollectionWithCount[];
+  /** searchId → collection ids, for the collection filter. */
+  membership: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
   const [category, setCategory] = React.useState<string | null>(null);
+  const [collectionId, setCollectionId] = React.useState<string | null>(null);
   const [organizing, setOrganizing] = React.useState(false);
 
   const savedCount = React.useMemo(
@@ -72,13 +80,19 @@ export function LibraryView({
     return items.filter((i) => {
       if (filter === "saved" && !i.bookmarked) return false;
       if (category && i.category !== category) return false;
+      if (
+        collectionId &&
+        !(membership[i.searchId] ?? []).includes(collectionId)
+      ) {
+        return false;
+      }
       if (!needle) return true;
       return (
         i.title.toLowerCase().includes(needle) ||
         i.query.toLowerCase().includes(needle)
       );
     });
-  }, [items, filter, q, category]);
+  }, [items, filter, q, category, collectionId, membership]);
 
   if (items.length === 0) {
     return (
@@ -163,6 +177,32 @@ export function LibraryView({
               Organizing by topic…
             </span>
           )}
+        </div>
+      )}
+
+      {collections.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <Folder className="h-3.5 w-3.5" />
+            Collections
+          </span>
+          <CategoryChip
+            active={collectionId === null}
+            onClick={() => setCollectionId(null)}
+          >
+            All
+          </CategoryChip>
+          {collections.map((c) => (
+            <CategoryChip
+              key={c.id}
+              active={collectionId === c.id}
+              onClick={() =>
+                setCollectionId((cur) => (cur === c.id ? null : c.id))
+              }
+            >
+              {c.name} <span className="opacity-50">{c.count}</span>
+            </CategoryChip>
+          ))}
         </div>
       )}
 

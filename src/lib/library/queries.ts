@@ -3,6 +3,7 @@ import type { SourceMeta } from "@/components/search/source-list";
 
 export interface LibraryItem {
   summaryId: string;
+  searchId: string;
   query: string;
   title: string;
   inputType: "keyword" | "url";
@@ -91,6 +92,7 @@ export async function listLibrary(
       : null;
     return {
       summaryId: r.id as string,
+      searchId: search?.id ?? "",
       title: (r.title as string) ?? "Untitled",
       query: search?.query ?? "",
       inputType: (search?.input_type as "keyword" | "url") ?? "keyword",

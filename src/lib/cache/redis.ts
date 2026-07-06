@@ -114,6 +114,62 @@ export async function checkRateLimit(
   return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };
 }
 
+// Audio overviews (Max-only) each cost real TTS money, so cap new generations
+// per user per day. Regenerating an existing article reuses its row and isn't
+// re-counted here (the route returns the cached audio before rate-limiting).
+const AUDIO_DAILY_LIMIT = 15;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+let _audioLimiter: Ratelimit | undefined;
+function audioLimiter(): Ratelimit | null {
+  const redis = getRedis();
+  if (!redis) return null;
+  if (!_audioLimiter) {
+    _audioLimiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(AUDIO_DAILY_LIMIT, "24 h"),
+      prefix: "rl:audio",
+    });
+  }
+  return _audioLimiter;
+}
+
+/**
+ * Per-user daily cap on new audio-overview generations. Upstash sliding window
+ * when configured, else counts the user's own `audio_overviews` rows created in
+ * the trailing day (RLS-scoped). Fails open on error.
+ */
+export async function checkAudioRateLimit(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RateLimitResult> {
+  const limit = AUDIO_DAILY_LIMIT;
+
+  const limiter = audioLimiter();
+  if (limiter) {
+    try {
+      const { success, remaining } = await limiter.limit(`u:${userId}`);
+      return { allowed: success, remaining, limit };
+    } catch (err) {
+      console.error("checkAudioRateLimit: Upstash error; falling back to DB count:", err);
+    }
+  }
+
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const { count, error } = await supabase
+    .from("audio_overviews")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", since);
+  if (error) {
+    console.error("checkAudioRateLimit: DB fallback count failed; failing open:", error);
+    return { allowed: true, remaining: -1, limit };
+  }
+
+  const used = count ?? 0;
+  return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };
+}
+
 // Follow-up chat (Max-only) is cheaper and more interactive than a full search,
 // so it gets its own generous hourly cap independent of the search budget.
 const CHAT_HOURLY_LIMIT = 120;

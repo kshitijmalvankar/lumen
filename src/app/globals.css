@@ -277,6 +277,25 @@
   @apply ml-0.5 inline-flex h-[1.05em] min-w-[1.05em] items-center justify-center rounded-[5px] bg-brand/12 px-1 align-super text-[0.62em] font-semibold text-brand no-underline transition-colors hover:bg-brand hover:text-brand-foreground;
 }
 
+/* Honest attribution: paragraphs with no citation get a subtle marker so the
+   reader can see which claims aren't directly backed by a source. */
+.article p.unsourced {
+  border-left: 2px dashed
+    color-mix(in oklch, var(--muted-foreground) 32%, transparent);
+  padding-left: 0.85rem;
+}
+.article p.unsourced::after {
+  content: "no source cited";
+  margin-left: 0.4rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  white-space: nowrap;
+  vertical-align: 0.1em;
+}
+
 /* ---------- Bolder-modern surfaces, gradients & motion -------------------- */
 
 /* Frosted-glass surface for cards, bars, and popovers. */
@@ -347,5 +366,35 @@
 @media (prefers-reduced-motion: reduce) {
   .read-progress {
     transition: none;
+  }
+}
+
+/* ---------- Print (Save as PDF) ------------------------------------------- */
+/* Hide app chrome and flatten to light so the article prints as a clean doc. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  /* Force a light palette when printing from dark mode. */
+  .dark {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.2 0.006 286);
+    --muted-foreground: oklch(0.45 0.01 286);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.2 0.006 286);
+    --border: oklch(0.85 0.005 286);
+  }
+  /* Don't waste ink on the "no source cited" tags. */
+  .article p.unsourced::after {
+    content: "";
+  }
+  a {
+    text-decoration: none !important;
   }
 }

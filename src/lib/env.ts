@@ -23,6 +23,10 @@ export const env = {
   // Jina Reader (optional)
   jinaApiKey: process.env.JINA_API_KEY ?? "",
 
+  // Hume Octave TTS (optional) — enables generated Audio Overviews.
+  humeApiKey: process.env.HUME_API_KEY ?? "",
+  humeVoiceDescription: process.env.HUME_VOICE_DESCRIPTION ?? "",
+
   // Upstash Redis
   upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
   upstashRedisToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
@@ -58,3 +62,5 @@ export const isRedisConfigured = () =>
 
 export const isStripeConfigured = () =>
   Boolean(env.stripeSecretKey && env.stripePricePro && env.stripePriceMax);
+
+export const isHumeConfigured = () => Boolean(env.humeApiKey);

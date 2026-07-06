@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { FileText } from "lucide-react";
 import { env } from "@/lib/env";
 import { getSharedArticle } from "@/lib/share/queries";
 import { CitationMarkdown } from "@/components/search/citation-markdown";
-import { CoverageNote } from "@/components/search/coverage-note";
+import { TrustPanel } from "@/components/reader/trust-panel";
 import { SourceList } from "@/components/search/source-list";
 import { ShareNav, LockedAnalysis, SignupCta } from "@/components/share/share-cta";
 import { SiteFooter } from "@/components/site-footer";
@@ -79,24 +78,19 @@ export default async function SharedArticlePage({
             <h1 className="font-serif text-4xl font-semibold leading-[1.1] tracking-tight">
               {article.title}
             </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              {date && <span>{date}</span>}
-              {date && <span>·</span>}
-              <span className="inline-flex items-center gap-1">
-                <FileText className="h-3.5 w-3.5" />
-                {article.sources.length}{" "}
-                {article.sources.length === 1 ? "source" : "sources"}
-              </span>
-            </div>
+            {date && (
+              <div className="mt-3 text-sm text-muted-foreground">{date}</div>
+            )}
           </header>
 
-          <div className="mt-6">
-            <CitationMarkdown markdown={article.bodyMarkdown} />
-          </div>
+          <TrustPanel
+            sources={article.sources}
+            citationCoverage={article.citationCoverage}
+          />
 
-          {article.citationCoverage != null && (
-            <CoverageNote coverage={article.citationCoverage} />
-          )}
+          <div className="mt-6">
+            <CitationMarkdown markdown={article.bodyMarkdown} markUnsourced />
+          </div>
 
           {article.hasAnalysis && <LockedAnalysis />}
 
