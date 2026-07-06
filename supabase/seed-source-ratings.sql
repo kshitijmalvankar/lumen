@@ -122,6 +122,7 @@ insert into public.source_ratings (domain, credibility_tier, political_lean, rat
   ('thehindubusinessline.com','high','center','seed'),
   ('moneycontrol.com','high','center','seed'),
   ('deccanherald.com','high','center','seed'),
+  ('rbi.org.in','high','center','seed'),
   ('ndtv.com','medium','lean-left','seed'),
   ('hindustantimes.com','medium','center','seed'),
   ('timesofindia.indiatimes.com','medium','center','seed'),
@@ -167,6 +168,10 @@ insert into public.source_ratings (domain, credibility_tier, political_lean, rat
   ('theregister.com','medium','center','seed'),
   ('404media.co','medium','lean-left','seed'),
   ('restofworld.org','high','center','seed'),
+
+  -- Publishing platforms (author-dependent, so treated as medium)
+  ('medium.com','medium','center','seed'),
+  ('substack.com','medium','center','seed'),
 
   -- Reference / encyclopedic
   ('wikipedia.org','medium','center','seed'),

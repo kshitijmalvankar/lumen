@@ -12,6 +12,7 @@ import {
 import {
   maxTier,
   parseDomainRatings,
+  sanitizeLlmRating,
   type SourceRating,
   type DomainRating,
 } from "./ratings-core";
@@ -133,7 +134,14 @@ export async function classifyDomains(
     max_tokens: 1000,
   });
 
-  return parseDomainRatings(res.choices?.[0]?.message?.content ?? "");
+  // Only keep domains we actually asked about (drop any the model invents), and
+  // apply the LLM guard rails (credibility cap + confidence-gated lean).
+  const requested = new Set(
+    uniq.map((d) => d.toLowerCase().replace(/^www\./, "")),
+  );
+  return parseDomainRatings(res.choices?.[0]?.message?.content ?? "")
+    .filter((r) => requested.has(r.domain))
+    .map((r) => sanitizeLlmRating(r));
 }
 
 /** Persist LLM ratings into the shared table (never clobbers seed/existing rows). */

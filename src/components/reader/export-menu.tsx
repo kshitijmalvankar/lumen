@@ -58,6 +58,7 @@ export function ExportMenu({
 
   function savePdf() {
     if (!canPdf) {
+      toast.info("PDF export is a Pro feature — taking you to plans.");
       router.push("/app/upgrade");
       return;
     }
@@ -68,10 +69,10 @@ export function ExportMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Export article"
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        className={cn(buttonVariants({ variant: "outline", size: "default" }))}
       >
         <Download className="h-4 w-4" />
-        <span>Export</span>
+        <span className="hidden sm:inline">Export</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem onClick={copyMarkdown}>

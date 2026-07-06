@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { maxTier, parseDomainRatings } from "@/lib/search/ratings-core";
+import {
+  maxTier,
+  parseDomainRatings,
+  sanitizeLlmRating,
+} from "@/lib/search/ratings-core";
 
 describe("maxTier", () => {
   it("keeps the stronger tier regardless of order", () => {
@@ -56,5 +60,48 @@ describe("parseDomainRatings", () => {
   it("returns [] for non-array or garbage", () => {
     expect(parseDomainRatings("not json")).toEqual([]);
     expect(parseDomainRatings('{"domain":"a.com"}')).toEqual([]);
+  });
+});
+
+describe("sanitizeLlmRating", () => {
+  it("caps an LLM-asserted 'high' credibility at 'medium'", () => {
+    const r = sanitizeLlmRating({
+      domain: "sketchy.example",
+      credibilityTier: "high",
+      politicalLean: "center",
+      confidence: 0.9,
+    });
+    expect(r.credibilityTier).toBe("medium");
+  });
+
+  it("keeps medium/low credibility unchanged", () => {
+    expect(
+      sanitizeLlmRating({
+        domain: "a.com",
+        credibilityTier: "low",
+        politicalLean: "right",
+        confidence: 0.9,
+      }).credibilityTier,
+    ).toBe("low");
+  });
+
+  it("drops a low-confidence lean to unknown", () => {
+    const r = sanitizeLlmRating({
+      domain: "a.com",
+      credibilityTier: "medium",
+      politicalLean: "left",
+      confidence: 0.3,
+    });
+    expect(r.politicalLean).toBe("unknown");
+  });
+
+  it("keeps a confident lean", () => {
+    const r = sanitizeLlmRating({
+      domain: "a.com",
+      credibilityTier: "medium",
+      politicalLean: "lean-right",
+      confidence: 0.8,
+    });
+    expect(r.politicalLean).toBe("lean-right");
   });
 });

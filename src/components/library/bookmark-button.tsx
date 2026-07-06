@@ -44,7 +44,7 @@ export function BookmarkButton({
     <Button
       type="button"
       variant={withLabel ? "outline" : "ghost"}
-      size={withLabel ? "sm" : "icon-sm"}
+      size={withLabel ? "default" : "icon-sm"}
       onClick={toggle}
       disabled={pending}
       aria-pressed={bookmarked}
@@ -55,7 +55,9 @@ export function BookmarkButton({
       )}
     >
       <Icon className={cn(bookmarked && "fill-current")} />
-      {withLabel && <span>{bookmarked ? "Saved" : "Save"}</span>}
+      {withLabel && (
+        <span className="hidden sm:inline">{bookmarked ? "Saved" : "Save"}</span>
+      )}
     </Button>
   );
 }

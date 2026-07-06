@@ -12,6 +12,12 @@ export type PoliticalLean =
 
 // Lightweight, transparent heuristic. Not exhaustive — a starting point that
 // can be tuned or replaced with a real reputation source later.
+//
+// NOTE: this hardcoded map is now the *trusted floor* under the dynamic
+// `source_ratings` table (see ./ratings.ts). The seed in
+// supabase/seed-source-ratings.sql is kept a superset of these lists, so the
+// two agree. Longer term this map should be retired in favour of the table
+// (seeded from here) to keep a single source of truth.
 const HIGH_DOMAINS = new Set([
   "reuters.com",
   "apnews.com",

@@ -84,7 +84,7 @@ export function ShareButton({
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size="default"
         onClick={onShare}
         disabled={pending}
         aria-label="Share this article"
@@ -94,7 +94,7 @@ export function ShareButton({
         ) : (
           <Share2 className="h-4 w-4" />
         )}
-        <span>Share</span>
+        <span className="hidden sm:inline">Share</span>
       </Button>
 
       {open && url && (

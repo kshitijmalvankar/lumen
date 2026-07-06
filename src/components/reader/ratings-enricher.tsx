@@ -9,6 +9,11 @@ import { Loader2 } from "lucide-react";
  * budget) when an article has sources we haven't rated yet, then refreshes so the
  * server re-renders the enriched chips + balance meter. Once per article/session.
  * Mirrors the library's optimistic backfill-then-refresh pattern.
+ *
+ * We use `router.refresh()` (the codebase's established pattern) rather than a
+ * client-side sources store; the chips fade in on re-render. A full client-state
+ * refactor would avoid the refetch but is intentionally deferred — it's the
+ * riskiest change on this auth-gated page and the refresh only runs once.
  */
 export function RatingsEnricher({
   summaryId,

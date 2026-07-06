@@ -100,13 +100,15 @@ export function CollectionMenu({
       <Button
         type="button"
         variant={count > 0 ? "default" : "outline"}
-        size="sm"
+        size="default"
         onClick={() => setOpen((o) => !o)}
-        aria-label="Add to a collection"
+        aria-label={count > 0 ? `In ${count} collections` : "Add to a collection"}
         aria-expanded={open}
       >
         <Icon className="h-4 w-4" />
-        <span>{count > 0 ? `In ${count}` : "Collect"}</span>
+        <span className="hidden sm:inline">
+          {count > 0 ? `In ${count}` : "Collect"}
+        </span>
       </Button>
 
       {open && (

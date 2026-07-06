@@ -1,6 +1,7 @@
 import { ShieldCheck, ShieldAlert, Scale } from "lucide-react";
 import type { SourceMeta } from "@/components/search/source-list";
 import { credibilityCounts, leanBalance } from "@/lib/reader/trust";
+import { RatingsInfo } from "@/components/reader/ratings-info";
 import { cn } from "@/lib/utils";
 
 type Tier = SourceMeta["credibilityTier"];
@@ -85,6 +86,10 @@ export function TrustPanel({
             </span>
           </>
         )}
+
+        <span className="ml-auto">
+          <RatingsInfo />
+        </span>
       </div>
 
       {/* Row 2 — political balance meter (only when we have known leans) */}

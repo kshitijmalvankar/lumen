@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CitationMarkdown } from "./citation-markdown";
-import { CoverageNote } from "./coverage-note";
+import { TrustPanel } from "@/components/reader/trust-panel";
 import { SourceList, type SourceMeta } from "./source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
@@ -298,8 +298,11 @@ export function SearchView({
             </div>
           )}
 
-          {status === "done" && info && (
-            <CoverageNote coverage={info.citationCoverage} />
+          {status === "done" && info && sources.length > 0 && (
+            <TrustPanel
+              sources={sources}
+              citationCoverage={info.citationCoverage}
+            />
           )}
 
           {status === "done" &&

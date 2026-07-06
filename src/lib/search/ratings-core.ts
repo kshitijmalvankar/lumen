@@ -25,6 +25,25 @@ export function maxTier(a: CredibilityTier, b: CredibilityTier): CredibilityTier
   return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
 }
 
+/**
+ * Guard rails for a rating the LLM produced on its own:
+ * - Cap credibility at "medium" — the model must not assert top credibility for
+ *   an unknown domain (a genuine High outlet is covered by the hardcoded floor or
+ *   the curated seed, which win via maxTier). Prevents inflation of spammy sites.
+ * - Drop a low-confidence lean guess to "unknown" rather than showing it as fact.
+ * Pure — unit-tested.
+ */
+export function sanitizeLlmRating(
+  r: DomainRating,
+  minConfidence = 0.5,
+): DomainRating {
+  return {
+    ...r,
+    credibilityTier: r.credibilityTier === "high" ? "medium" : r.credibilityTier,
+    politicalLean: r.confidence < minConfidence ? "unknown" : r.politicalLean,
+  };
+}
+
 const CREDIBILITY_VALUES = new Set<CredibilityTier>([
   "high",
   "medium",

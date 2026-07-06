@@ -277,23 +277,27 @@
   @apply ml-0.5 inline-flex h-[1.05em] min-w-[1.05em] items-center justify-center rounded-[5px] bg-brand/12 px-1 align-super text-[0.62em] font-semibold text-brand no-underline transition-colors hover:bg-brand hover:text-brand-foreground;
 }
 
-/* Honest attribution: paragraphs with no citation get a subtle marker so the
-   reader can see which claims aren't directly backed by a source. */
+/* Honest attribution: paragraphs with no citation get a subtle dashed border so
+   the reader can see which claims aren't directly backed by a source. The text
+   label is reveal-on-hover only (desktop) to avoid repeating on every paragraph;
+   the `title` tooltip carries the same meaning for touch + screen readers. */
 .article p.unsourced {
   border-left: 2px dashed
-    color-mix(in oklch, var(--muted-foreground) 32%, transparent);
+    color-mix(in oklch, var(--muted-foreground) 28%, transparent);
   padding-left: 0.85rem;
 }
-.article p.unsourced::after {
-  content: "no source cited";
-  margin-left: 0.4rem;
-  font-size: 0.6rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-  opacity: 0.55;
-  white-space: nowrap;
-  vertical-align: 0.1em;
+@media (hover: hover) {
+  .article p.unsourced:hover::after {
+    content: "no source cited";
+    margin-left: 0.4rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    opacity: 0.7;
+    white-space: nowrap;
+    vertical-align: 0.1em;
+  }
 }
 
 /* ---------- Bolder-modern surfaces, gradients & motion -------------------- */

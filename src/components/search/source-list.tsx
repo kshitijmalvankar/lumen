@@ -109,6 +109,7 @@ export function SourceList({ sources }: { sources: SourceMeta[] }) {
                     {date && <span>· {date}</span>}
                     <Badge
                       variant="outline"
+                      title="Lumen's estimate of source credibility"
                       className={`h-5 px-1.5 text-[0.65rem] ${tierClass(
                         s.credibilityTier,
                       )}`}
@@ -118,8 +119,8 @@ export function SourceList({ sources }: { sources: SourceMeta[] }) {
                     {s.politicalLean && s.politicalLean !== "unknown" && (
                       <Badge
                         variant="outline"
-                        title="Lumen's estimate of the outlet's typical leaning"
-                        className={`h-5 px-1.5 text-[0.65rem] ${leanClass(
+                        title="Lumen's estimate of the outlet's typical leaning (generic left–right)"
+                        className={`h-5 animate-in fade-in px-1.5 text-[0.65rem] duration-500 ${leanClass(
                           s.politicalLean,
                         )}`}
                       >
