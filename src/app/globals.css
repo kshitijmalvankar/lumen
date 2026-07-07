@@ -376,6 +376,10 @@
 /* ---------- Print (Save as PDF) ------------------------------------------- */
 /* Hide app chrome and flatten to light so the article prints as a clean doc. */
 @media print {
+  /* Comfortable page margins so content isn't jammed against the edge. */
+  @page {
+    margin: 18mm 16mm;
+  }
   .no-print {
     display: none !important;
   }
@@ -384,6 +388,21 @@
   }
   main {
     padding: 0 !important;
+  }
+  /* Keep the light-mode tints (AI panel, citation badges, source numbers) so
+     the layout still reads as designed on paper. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* ⚠️ Chrome rasterizes any `backdrop-filter` element to an opaque white box
+     when printing — this is what blanked out the AI Analysis panel and the
+     source cards. Neutralize it everywhere for print. */
+  .glass,
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
   }
   /* Force a light palette when printing from dark mode. */
   .dark {
@@ -394,6 +413,31 @@
     --card-foreground: oklch(0.2 0.006 286);
     --border: oklch(0.85 0.005 286);
   }
+
+  /* Page-break hygiene: don't strand a heading at the bottom of a page, and
+     keep short blocks (source cards, AI panel, blockquotes) whole. */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid-page;
+  }
+  .article p,
+  .article li {
+    orphans: 3;
+    widows: 3;
+  }
+  .article blockquote,
+  [id^="source-"] {
+    break-inside: avoid;
+  }
+
+  /* AI Analysis: render as a clean, clearly-bordered panel instead of a glassy
+     translucent card. */
+  .ai-analysis {
+    border: 1px solid var(--border) !important;
+    background: color-mix(in oklch, var(--foreground) 4%, #fff) !important;
+  }
+
   /* Don't waste ink on the "no source cited" tags. */
   .article p.unsourced::after {
     content: "";

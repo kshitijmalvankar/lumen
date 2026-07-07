@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 /** Lumen's own commentary on an article (Pro/Max). Distinct, clearly-labeled. */
 export function AiAnalysis({ markdown }: { markdown: string }) {
   return (
-    <section className="gradient-ring mt-10 overflow-hidden rounded-2xl border border-brand/20 bg-brand/[0.05] p-5 backdrop-blur-md sm:p-6">
+    <section className="ai-analysis gradient-ring mt-10 overflow-hidden rounded-2xl border border-brand/20 bg-brand/[0.05] p-5 backdrop-blur-md sm:p-6">
       <div className="flex items-center gap-2">
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand/15 text-brand shadow-sm">
           <Sparkles className="h-3.5 w-3.5" />

@@ -71,6 +71,13 @@ export default async function ArticlePage({
         <ReadingProgress />
       </div>
       <article className="mx-auto max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {/* Print-only masthead — a clean header for the exported PDF. */}
+        <div className="hidden print:mb-6 print:block">
+          <div className="flex items-center justify-between border-b pb-2 text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
+            <span className="font-semibold">Lumen</span>
+            <span>research, distilled</span>
+          </div>
+        </div>
         <Link
           href="/app/library"
           className={cn(

@@ -14,7 +14,12 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function LibraryPage() {
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ topic?: string }>;
+}) {
+  const { topic } = await searchParams;
   if (!isSupabaseConfigured()) {
     return (
       <div className="mt-20 text-center text-muted-foreground">
@@ -49,6 +54,7 @@ export default async function LibraryPage() {
       personalizationEnabled={personalization}
       collections={collections}
       membership={membership}
+      initialCategory={topic ?? null}
     />
   );
 }

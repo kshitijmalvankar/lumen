@@ -22,6 +22,7 @@ import {
   resetInterests,
 } from "./actions";
 import { SubmitButton } from "@/components/auth/submit-button";
+import { InterestsChart } from "@/components/interests/interests-chart";
 import { DeleteAccountButton } from "@/components/settings/delete-account-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,8 +83,6 @@ export default async function SettingsPage({
       }
     }
   }
-
-  const maxInterest = interests[0]?.score ?? 1;
 
   const TierIcon = TIER_ICON[tier];
   const isPaid = tier !== "free";
@@ -240,24 +239,19 @@ export default async function SettingsPage({
           </p>
         ) : (
           <>
-            <ul className="mt-4 space-y-2.5">
-              {interests.map((it) => (
-                <li key={it.topic} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 truncate text-sm font-medium">
-                    {it.topic}
-                  </span>
-                  <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted-foreground/15">
-                    <span
-                      className="block h-full rounded-full bg-brand"
-                      style={{
-                        width: `${Math.max(8, (it.score / maxInterest) * 100)}%`,
-                      }}
-                    />
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <form action={resetInterests} className="mt-5">
+            <div className="mt-5">
+              <InterestsChart
+                data={interests.map((it) => ({
+                  label: it.topic,
+                  value: it.score,
+                }))}
+                mode="link"
+              />
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Tap a topic to open those articles in your library.
+            </p>
+            <form action={resetInterests} className="mt-4">
               <SubmitButton variant="ghost" className="text-muted-foreground">
                 Reset interests
               </SubmitButton>

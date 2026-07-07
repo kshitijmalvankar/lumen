@@ -19,6 +19,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { BookmarkButton } from "./bookmark-button";
+import { InterestsChart } from "@/components/interests/interests-chart";
 import { SuggestedPrompts } from "@/components/suggestions/suggested-prompts";
 import { backfillCategories } from "@/app/app/library/actions";
 import type { LibraryItem } from "@/lib/library/queries";
@@ -33,6 +34,7 @@ export function LibraryView({
   personalizationEnabled,
   collections,
   membership,
+  initialCategory = null,
 }: {
   items: LibraryItem[];
   tier: Tier;
@@ -40,13 +42,31 @@ export function LibraryView({
   collections: CollectionWithCount[];
   /** searchId → collection ids, for the collection filter. */
   membership: Record<string, string[]>;
+  /** Topic to pre-filter by, from the `?topic=` deep link. */
+  initialCategory?: string | null;
 }) {
   const router = useRouter();
   const [filter, setFilter] = React.useState<Filter>("all");
   const [q, setQ] = React.useState("");
-  const [category, setCategory] = React.useState<string | null>(null);
+  const [category, setCategory] = React.useState<string | null>(initialCategory);
   const [collectionId, setCollectionId] = React.useState<string | null>(null);
   const [organizing, setOrganizing] = React.useState(false);
+
+  // Filter by topic and mirror it into the URL so it's deep-linkable and the
+  // back button restores the previous view.
+  const applyCategory = React.useCallback(
+    (next: string | null) => {
+      setCategory(next);
+      const params = new URLSearchParams(window.location.search);
+      if (next) params.set("topic", next);
+      else params.delete("topic");
+      const qs = params.toString();
+      router.replace(qs ? `/app/library?${qs}` : "/app/library", {
+        scroll: false,
+      });
+    },
+    [router],
+  );
 
   const savedCount = React.useMemo(
     () => items.filter((i) => i.bookmarked).length,
@@ -156,27 +176,61 @@ export function LibraryView({
       </div>
 
       {(categories.length > 0 || organizing) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {categories.length > 0 && (
-            <CategoryChip active={category === null} onClick={() => setCategory(null)}>
-              All topics
-            </CategoryChip>
-          )}
-          {categories.map(([name, count]) => (
-            <CategoryChip
-              key={name}
-              active={category === name}
-              onClick={() => setCategory(name)}
-            >
-              {name} <span className="opacity-50">{count}</span>
-            </CategoryChip>
-          ))}
-          {organizing && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Organizing by topic…
-            </span>
-          )}
+        <div className="mt-4 rounded-2xl border bg-card/60 p-4 backdrop-blur-md sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-serif text-base font-semibold tracking-tight">
+              Your topics
+            </h2>
+            <div className="flex items-center gap-3">
+              {organizing && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Organizing…
+                </span>
+              )}
+              {category && (
+                <button
+                  onClick={() => applyCategory(null)}
+                  className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+          </div>
+
+          {categories.length >= 2 ? (
+            <div className="mt-4">
+              <InterestsChart
+                data={categories.map(([name, count]) => ({
+                  label: name,
+                  value: count,
+                }))}
+                mode="select"
+                activeLabel={category}
+                onSelect={applyCategory}
+                size={150}
+              />
+            </div>
+          ) : categories.length === 1 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <CategoryChip
+                active={category === null}
+                onClick={() => applyCategory(null)}
+              >
+                All topics
+              </CategoryChip>
+              {categories.map(([name, count]) => (
+                <CategoryChip
+                  key={name}
+                  active={category === name}
+                  onClick={() => applyCategory(name)}
+                >
+                  {name} <span className="opacity-50">{count}</span>
+                </CategoryChip>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
 
