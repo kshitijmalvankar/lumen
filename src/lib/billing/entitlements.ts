@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isExtendedCompute } from "@/lib/env";
 
 export type Tier = "free" | "pro" | "max";
 
@@ -20,10 +21,10 @@ export const TIER_RANK: Record<Tier, number> = {
 // (the ceiling passed to the web plugin's max_results; it returns up to this
 // many when the topic has them).
 //
-// Source depth is a flat 7 across all tiers for now: on the current Vercel plan
-// (60s function limit) deeper sourcing makes Opus/Max searches exceed the limit
-// and get cut off. Tiers differ by MODEL only. Raise per-tier once on a Vercel
-// plan with a higher function-time limit (Pro = 300s).
+// `sources` here is the Hobby-safe baseline: a flat 7, because on a 60s function
+// limit deeper sourcing makes Opus/Max searches exceed the limit and get cut
+// off. The deeper per-tier depths live in EXTENDED_SOURCES and switch on via
+// `searchDepth()` once LUMEN_EXTENDED_COMPUTE is set (Vercel Pro, 300s).
 export const TIER_LIMITS: Record<
   Tier,
   { searchesPerHour: number; sources: number; collections: number }
@@ -34,6 +35,34 @@ export const TIER_LIMITS: Record<
   pro: { searchesPerHour: 60, sources: 7, collections: Infinity },
   max: { searchesPerHour: 200, sources: 7, collections: Infinity },
 };
+
+// Extended (Vercel Pro / 300s) sourcing depth + combined content budget. Deeper
+// per tier so paid tiers differ by more than model, with a larger budget so the
+// extra sources still get meaningful context. Tunable knobs.
+const EXTENDED_SOURCES: Record<Tier, number> = { free: 8, pro: 14, max: 20 };
+const BASELINE_CONTENT_BUDGET = 28000;
+const EXTENDED_CONTENT_BUDGET = 52000;
+
+/**
+ * How deep a search may go for this tier, and the total source-content budget
+ * fed to generation. Falls back to the Hobby-safe flat baseline unless
+ * LUMEN_EXTENDED_COMPUTE is on (see isExtendedCompute).
+ */
+export function searchDepth(tier: Tier): {
+  sources: number;
+  contentBudget: number;
+} {
+  if (isExtendedCompute()) {
+    return {
+      sources: EXTENDED_SOURCES[tier],
+      contentBudget: EXTENDED_CONTENT_BUDGET,
+    };
+  }
+  return {
+    sources: TIER_LIMITS[tier].sources,
+    contentBudget: BASELINE_CONTENT_BUDGET,
+  };
+}
 
 /** True when `tier` is at least `min` (e.g. tierAtLeast(t, "pro")). */
 export function tierAtLeast(tier: Tier, min: Tier): boolean {

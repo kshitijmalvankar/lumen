@@ -9,6 +9,7 @@ import {
   BookOpen,
   Sparkles,
   ArrowRight,
+  Telescope,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -20,7 +21,9 @@ import { BookmarkButton } from "@/components/library/bookmark-button";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
 import { ModelPicker } from "./model-picker";
 import { SuggestedPrompts } from "@/components/suggestions/suggested-prompts";
+import { WatchButton } from "@/components/discover/watch-button";
 import { defaultModelId, type ModelId } from "@/lib/ai/model-catalog";
+import { SEARCH_FORMATS, DEFAULT_FORMAT, type SearchFormat } from "@/lib/ai/formats";
 import type { Tier } from "@/lib/billing/entitlements";
 
 type Status = "idle" | "running" | "done" | "error";
@@ -53,10 +56,13 @@ export function SearchView({
   tier,
   personalizationEnabled = true,
   initialQuery = null,
+  deepResearchEnabled = false,
 }: {
   tier: Tier;
   personalizationEnabled?: boolean;
   initialQuery?: string | null;
+  /** Max + extended compute — shows the Deep research toggle. */
+  deepResearchEnabled?: boolean;
 }) {
   const [input, setInput] = React.useState("");
   const [query, setQuery] = React.useState("");
@@ -69,6 +75,8 @@ export function SearchView({
   const [error, setError] = React.useState("");
   const [exampleIdx, setExampleIdx] = React.useState(0);
   const [model, setModel] = React.useState<ModelId>(defaultModelId(tier));
+  const [format, setFormat] = React.useState<SearchFormat>(DEFAULT_FORMAT);
+  const [deep, setDeep] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
 
   // Gently rotate the placeholder example while the field is idle + empty.
@@ -102,7 +110,12 @@ export function SearchView({
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed, model }),
+        body: JSON.stringify({
+          query: trimmed,
+          model,
+          format: deep ? "deep" : format,
+          mode: deep ? "deep" : "quick",
+        }),
         signal: controller.signal,
       });
 
@@ -165,7 +178,7 @@ export function SearchView({
       setError("Connection lost. Please try again.");
       setStatus("error");
     }
-  }, [model]);
+  }, [model, format, deep]);
 
   // Deep-link support: /app?q=… (e.g. a suggestion clicked from the library)
   // pre-fills and runs the search once on mount.
@@ -248,6 +261,57 @@ export function SearchView({
         />
       </div>
 
+      {isIdle && deepResearchEnabled && (
+        <div className="mx-auto mt-2 flex max-w-2xl justify-center">
+          <button
+            type="button"
+            onClick={() => setDeep((d) => !d)}
+            disabled={isRunning}
+            aria-pressed={deep}
+            title="Plan multiple angles, search each, and synthesize one long, structured report"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+              deep
+                ? "border-brand/40 bg-brand/10 text-brand"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <Telescope className="h-4 w-4" />
+            Deep research
+            {deep && (
+              <span className="text-[0.65rem] font-semibold uppercase opacity-70">
+                on
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {isIdle && !deep && (
+        <div className="mx-auto mt-2 flex max-w-2xl flex-wrap items-center justify-center gap-1.5">
+          <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Format
+          </span>
+          {SEARCH_FORMATS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFormat(f.id)}
+              disabled={isRunning}
+              title={f.hint}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+                format === f.id
+                  ? "border-brand/40 bg-brand/10 text-brand"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {isIdle && (
         <SuggestedPrompts
           tier={tier}
@@ -322,7 +386,8 @@ export function SearchView({
                 <span className="text-sm text-muted-foreground">
                   Saved to your library
                 </span>
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  {query && <WatchButton query={query} />}
                   <BookmarkButton
                     summaryId={info.summaryId}
                     initial={false}

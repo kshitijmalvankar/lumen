@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isSupabaseConfigured, isEmbeddingsConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { listLibrary } from "@/lib/library/queries";
 import {
@@ -9,6 +9,7 @@ import {
 import { getUserTier, type Tier } from "@/lib/billing/entitlements";
 import { getPersonalizationEnabled } from "@/lib/library/categorize";
 import { LibraryView } from "@/components/library/library-view";
+import { AskPanel } from "@/components/library/ask-panel";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -48,13 +49,16 @@ export default async function LibraryPage({
   ]);
 
   return (
-    <LibraryView
-      items={items}
-      tier={tier}
-      personalizationEnabled={personalization}
-      collections={collections}
-      membership={membership}
-      initialCategory={topic ?? null}
-    />
+    <div className="space-y-6">
+      {isEmbeddingsConfigured() && items.length > 0 && <AskPanel tier={tier} />}
+      <LibraryView
+        items={items}
+        tier={tier}
+        personalizationEnabled={personalization}
+        collections={collections}
+        membership={membership}
+        initialCategory={topic ?? null}
+      />
+    </div>
   );
 }

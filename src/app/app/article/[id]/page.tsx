@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Link2 } from "lucide-react";
-import { isSupabaseConfigured, isHumeConfigured } from "@/lib/env";
+import {
+  isSupabaseConfigured,
+  isHumeConfigured,
+  isEmbeddingsConfigured,
+} from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { getArticle } from "@/lib/library/queries";
+import { getRelated } from "@/lib/library/related";
 import { getActiveShareUrl } from "@/lib/share/queries";
 import { getMessages } from "@/lib/library/messages";
 import {
@@ -24,6 +29,7 @@ import {
   AudioOverviewLocked,
 } from "@/components/reader/audio-overview";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
+import { RelatedArticles } from "@/components/reader/related-articles";
 import { FollowUpChat, FollowUpChatLocked } from "@/components/chat/follow-up-chat";
 import { ReadingProgress } from "@/components/reader/reading-progress";
 import { buttonVariants } from "@/components/ui/button";
@@ -62,6 +68,13 @@ export default async function ArticlePage({
     listCollections(supabase),
     getArticleCollectionIds(supabase, article.searchId),
   ]);
+
+  // Semantic neighbours in the reader's own library (Pro/Max; empty until the
+  // library has been indexed, in which case the strip simply doesn't render).
+  const related =
+    tier !== "free" && isEmbeddingsConfigured()
+      ? await getRelated(supabase, article.summaryId)
+      : [];
 
   const date = formatDate(article.createdAt);
 
@@ -160,6 +173,12 @@ export default async function ArticlePage({
         ) : null}
 
         <SourceList sources={article.sources} />
+
+        {related.length > 0 && (
+          <div className="no-print">
+            <RelatedArticles related={related} />
+          </div>
+        )}
 
         {isHumeConfigured() && (
           <div className="no-print">

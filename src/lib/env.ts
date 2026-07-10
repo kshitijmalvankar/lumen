@@ -20,8 +20,11 @@ export const env = {
   // per tier/pick in src/lib/ai/model-catalog.ts.
   openrouterModelCategorize: process.env.OPENROUTER_MODEL_CATEGORIZE ?? "",
 
-  // Jina Reader (optional)
+  // Jina Reader (optional) + Jina embeddings (Library Intelligence). The Reader
+  // works keyless; embeddings require JINA_API_KEY.
   jinaApiKey: process.env.JINA_API_KEY ?? "",
+  jinaEmbedModel: process.env.JINA_EMBED_MODEL ?? "jina-embeddings-v3",
+  jinaEmbedDimensions: Number(process.env.JINA_EMBED_DIMENSIONS ?? "1024"),
 
   // Hume Octave TTS (optional) — enables generated Audio Overviews.
   humeApiKey: process.env.HUME_API_KEY ?? "",
@@ -30,6 +33,12 @@ export const env = {
   // Upstash Redis
   upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
   upstashRedisToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
+
+  // Resend (optional) — powers the weekly discovery digest email.
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  resendFrom: process.env.RESEND_FROM ?? "Lumen <onboarding@resend.dev>",
+  // Shared secret the Vercel Cron request must present to run the digest.
+  cronSecret: process.env.CRON_SECRET ?? "",
 
   // Stripe (server-only). Price ids map a tier to its monthly subscription.
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
@@ -64,3 +73,18 @@ export const isStripeConfigured = () =>
   Boolean(env.stripeSecretKey && env.stripePricePro && env.stripePriceMax);
 
 export const isHumeConfigured = () => Boolean(env.humeApiKey);
+
+// Library Intelligence (semantic search) needs an embeddings key. Reuses the
+// Jina key; the feature hides itself when this is unset.
+export const isEmbeddingsConfigured = () => Boolean(env.jinaApiKey);
+
+// Vercel Pro raises the serverless function ceiling to 300s (Hobby = 60s). This
+// flag unlocks the "extended compute" path — deeper per-tier sourcing, a bigger
+// content budget, and inline library indexing. OFF by default so the code is
+// safe to deploy on Hobby; set LUMEN_EXTENDED_COMPUTE=1 once Pro is live.
+export const isExtendedCompute = () =>
+  process.env.LUMEN_EXTENDED_COMPUTE === "1";
+
+// Weekly digest email needs Resend configured; the feature (and its cron)
+// no-op when this is unset.
+export const isEmailConfigured = () => Boolean(env.resendApiKey);

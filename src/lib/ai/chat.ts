@@ -74,3 +74,45 @@ export async function* streamChatAnswer(args: {
     if (delta) yield delta;
   }
 }
+
+const LIBRARY_SYSTEM = `You are Lumen, helping a reader think across THEIR OWN saved research library. Below are the most relevant passages from their saved articles, each labelled [A1], [A2], … Answer the reader's question using only this material.
+
+Rules:
+- Ground every claim in the passages provided and cite the article it came from inline as [A1], [A2], etc. (matching the labels). Cite as you go.
+- Synthesize across articles when useful — call out where they agree, disagree, or leave a gap.
+- If the library doesn't cover the question, say so plainly. Never invent facts, figures, or articles, and never cite a label that isn't listed.
+- Be concise and conversational: a few short paragraphs at most. Use Markdown when it aids clarity.`;
+
+/**
+ * Stream an answer grounded in retrieved passages from across the reader's
+ * library. Passages are pre-assembled into `contextText` with [A#] labels; the
+ * model cites those labels, which the client turns into links to each article.
+ */
+export async function* streamLibraryAnswer(args: {
+  model: string;
+  contextText: string;
+  question: string;
+  reasoningEffort?: ReasoningEffort;
+}): AsyncGenerator<string> {
+  const { model, contextText, question, reasoningEffort } = args;
+  const client = getOpenRouter();
+
+  const stream = await client.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: "system",
+        content: `${LIBRARY_SYSTEM}\n\nLIBRARY PASSAGES:\n${contextText}`,
+      },
+      { role: "user", content: question },
+    ],
+    stream: true,
+    max_tokens: 2000,
+    reasoning_effort: reasoningEffort,
+  });
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices?.[0]?.delta?.content;
+    if (delta) yield delta;
+  }
+}

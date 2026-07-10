@@ -1,12 +1,16 @@
 import { z } from "zod";
+import { isExtendedCompute } from "@/lib/env";
 import { checkAudioRateLimit } from "@/lib/cache/redis";
 import { blocksToMarkdown } from "@/lib/library/queries";
 import { categorizeModel } from "@/lib/ai/models";
 import { buildAudioScript, segmentScript } from "@/lib/ai/audio-script";
+import { synthesizeSegment } from "@/lib/audio/hume";
+import { uploadSegment } from "@/lib/audio/storage";
 import { authorizeMaxAudio } from "@/lib/audio/guard";
 import {
   loadOverviewRow,
   createOverviewRow,
+  saveSegmentPath,
   toStatus,
 } from "@/lib/audio/overview";
 
@@ -84,6 +88,27 @@ export async function POST(req: Request) {
       script,
       segments,
     );
+
+    // Extended compute (Vercel Pro): synthesize every segment inline in this one
+    // 300s call instead of the staged per-segment client loop — the client just
+    // plays once status is "ready". Best-effort: if a segment fails (e.g. a Hume
+    // hiccup) we stop and return partial status, and the client's staged
+    // synthMissing loop finishes the rest.
+    if (isExtendedCompute()) {
+      for (const seg of row.segments) {
+        if (seg.path) continue;
+        try {
+          const audio = await synthesizeSegment(seg.text);
+          const path = await uploadSegment(summaryId, seg.index, audio);
+          await saveSegmentPath(supabase, summaryId, seg.index, path);
+        } catch (err) {
+          console.error("inline audio synth failed; client finishes staged:", err);
+          break;
+        }
+      }
+      return Response.json(await toStatus(await loadOverviewRow(supabase, summaryId)));
+    }
+
     return Response.json(await toStatus(row));
   } catch (err) {
     console.error("audio overview script error:", err);

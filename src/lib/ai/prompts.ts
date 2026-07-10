@@ -1,5 +1,6 @@
 import type { PreparedSource } from "@/lib/search/pipeline";
 import type { InputType } from "@/lib/search/pipeline";
+import { resolveFormat } from "@/lib/ai/formats";
 
 export interface ChatMessage {
   role: "system" | "user";
@@ -28,17 +29,22 @@ export function buildMessages(args: {
   query: string;
   inputType: InputType;
   sources: PreparedSource[];
+  /** Output lens (see formats.ts); shapes the article. */
+  format?: string;
 }): ChatMessage[] {
-  const { query, inputType, sources } = args;
+  const { query, inputType, sources, format } = args;
 
   const task =
     inputType === "url"
       ? `Write the article summarizing the following source for a reader who hasn't read it.`
       : `Write the article on this topic: "${query}"`;
 
+  const directive = resolveFormat(format).directive;
+  const formatBlock = directive ? `\n\nFORMAT: ${directive}` : "";
+
   const sourcesBlock = sources.map(formatSource).join("\n\n---\n\n");
 
-  const user = `${task}
+  const user = `${task}${formatBlock}
 
 Today's date: ${new Date().toISOString().slice(0, 10)}.
 

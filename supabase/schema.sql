@@ -6,6 +6,10 @@
 -- policies before recreating them, and guards enum creation).
 -- ============================================================================
 
+-- ---------- Extensions ------------------------------------------------------
+-- pgvector powers Library Intelligence (semantic search over saved articles).
+create extension if not exists vector;
+
 -- ---------- Enums -----------------------------------------------------------
 do $$ begin create type input_type as enum ('keyword','url');
 exception when duplicate_object then null; end $$;
@@ -251,6 +255,100 @@ insert into storage.buckets (id, name, public)
 values ('audio', 'audio', false)
 on conflict (id) do nothing;
 
+-- ---------- Library Intelligence: semantic embeddings + cross-library chat ---
+-- Per-chunk embeddings of each saved article, for "Ask your library" (RAG) and
+-- "Related in your library". User-scoped (RLS below). Written by the owner's
+-- session from POST /api/library/index; read via the match_* RPCs below.
+create table if not exists public.summary_embeddings (
+  id          uuid primary key default gen_random_uuid(),
+  summary_id  uuid not null references public.summaries(id) on delete cascade,
+  user_id     uuid not null,
+  chunk_index integer not null,
+  content     text not null,
+  embedding   vector(1024) not null,
+  token_count integer,
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists summary_embeddings_chunk_idx
+  on public.summary_embeddings (summary_id, chunk_index);
+create index if not exists summary_embeddings_user_idx
+  on public.summary_embeddings (user_id);
+-- Approximate-nearest-neighbour index for cosine similarity search.
+create index if not exists summary_embeddings_hnsw_idx
+  on public.summary_embeddings using hnsw (embedding vector_cosine_ops);
+
+-- Cross-library RAG chat history (one implicit default thread per user for now).
+create table if not exists public.library_messages (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null,
+  thread_id  uuid not null,
+  role       message_role not null,
+  content    text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists library_messages_thread_idx
+  on public.library_messages (user_id, thread_id, created_at);
+
+-- Cosine top-K over the caller's own chunks. NOT security definer, so it runs
+-- with the caller's privileges and RLS scopes results to their rows.
+create or replace function public.match_library_chunks(
+  query_embedding vector(1024),
+  match_count int default 10
+)
+returns table (summary_id uuid, chunk_index int, content text, similarity real)
+language sql stable
+as $$
+  select se.summary_id, se.chunk_index, se.content,
+         (1 - (se.embedding <=> query_embedding))::real as similarity
+  from public.summary_embeddings se
+  where se.user_id = auth.uid()
+  order by se.embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- Nearest saved articles to a given one (for "Related in your library"), keyed
+-- off that article's opening chunk and excluding itself.
+create or replace function public.match_related_summaries(
+  source_summary_id uuid,
+  match_count int default 4
+)
+returns table (summary_id uuid, similarity real)
+language sql stable
+as $$
+  with q as (
+    select embedding from public.summary_embeddings
+    where summary_id = source_summary_id and user_id = auth.uid()
+    order by chunk_index limit 1
+  )
+  select se.summary_id,
+         max((1 - (se.embedding <=> (select embedding from q)))::real) as similarity
+  from public.summary_embeddings se
+  where se.user_id = auth.uid()
+    and se.summary_id <> source_summary_id
+    and exists (select 1 from q)
+  group by se.summary_id
+  order by similarity desc
+  limit match_count;
+$$;
+
+-- ---------- Proactive discovery: watched topics + weekly digest opt-in ------
+-- Topics a user asked Lumen to keep an eye on. The weekly digest cron surfaces
+-- them (with interest-driven suggestions) by email. User-scoped (RLS below).
+create table if not exists public.topic_watches (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null,
+  query            text not null,
+  created_at       timestamptz not null default now(),
+  last_notified_at timestamptz
+);
+create unique index if not exists topic_watches_user_query_idx
+  on public.topic_watches (user_id, lower(query));
+
+-- Per-user weekly-digest opt-in (default on; toggled in Settings, honored by the
+-- cron). Lives on profiles (whose RLS keys on id).
+alter table public.profiles
+  add column if not exists weekly_digest boolean not null default true;
+
 -- ---------- Row-Level Security ---------------------------------------------
 -- Every per-user table is scoped to its owner via user_id = auth.uid().
 do $$
@@ -260,7 +358,7 @@ begin
     'searches','summaries','summary_blocks','sources','block_citations',
     'messages','categories','search_categories','search_tags','tags',
     'bookmarks','shares','interest_profile','suggestions','usage_quota',
-    'audio_overviews'
+    'audio_overviews','summary_embeddings','library_messages','topic_watches'
   ]
   loop
     execute format('alter table public.%I enable row level security;', t);

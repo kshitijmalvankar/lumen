@@ -65,9 +65,37 @@ Overview: **[README.md](./README.md)**. Go-live runbook: **[DEPLOY.md](./DEPLOY.
   **PDF export fixes**: the AI-Analysis panel printed blank (Chrome rasterizes
   `backdrop-filter` to an opaque white box) — neutralized in `@media print`, plus
   a print masthead, page-break hygiene, and page margins.
-- ⏭️ **Still pending**: **deep-research mode** (Phase 2 — decompose topic → many
-  searches → structured, balanced report; wants Vercel Pro), discovery/insights
-  dashboard. See "Open follow-ups".
+- ✅ **Library Intelligence (Pro/Max) — Phase 1**: semantic search over the saved
+  library via **Jina `jina-embeddings-v3` + pgvector**. **"Ask your library"**
+  (RAG) on `/app/library`: embed question → `match_library_chunks` RPC (RLS) →
+  grounded, streamed answer citing the articles it used as `[A#]`; plus
+  **"Related in your library"** on the reader (`match_related_summaries`).
+  Embeddings written by the owner's session; indexing runs as a **stacked**
+  `POST /api/library/index` (bounded backfill on library open, Pro/Max only, so
+  spend is bounded). `chunkArticle`/`buildLibraryContext` are pure + unit-tested;
+  server bits (`ask.ts`, `embeddings-index.ts`, `embeddings.ts`) are `server-only`.
+  Free → locked teaser. Feature hides unless `isEmbeddingsConfigured()`
+  (`JINA_API_KEY`).
+- ✅ **Richer outputs (Phase 2)**: output-lens picker on search
+  (`src/lib/ai/formats.ts` — Standard/Brief/In-depth/Comparison/Pros&cons/Explain
+  simply → prompt directive + `maxTokens`; all tiers, cached per `format.id`) and
+  **BibTeX/RIS citation export** (`src/lib/export/citations.ts` → Export menu).
+- ✅ **Proactive discovery (Phase 3)**: **topic watches** (`topic_watches` table,
+  `src/lib/library/watches.ts`), a **`/app/discover`** page + nav + a "Track
+  topic" button on results, and a **weekly digest email** — `GET
+  /api/cron/digest` (Vercel Cron in `vercel.json`, `CRON_SECRET`-gated) →
+  `sendWeeklyDigests` → **Resend** (`src/lib/email/*`; `buildDigestHtml` pure +
+  tested). Settings has a digest opt-out (`profiles.weekly_digest`). All email
+  no-ops unless `isEmailConfigured()` (`RESEND_API_KEY`).
+- ✅ **Deep research (Phase 4, Max + extended compute)**: a "Deep research" toggle
+  on search sends `mode:"deep"`; the search route then **plans sub-questions**
+  (`planResearch`) → **multi-searches in parallel + dedupes** (`gatherDeepSources`,
+  `src/lib/ai/research.ts`) → synthesizes one long in-depth report (reuses
+  `buildMessages` w/ the `deep` lens + all the existing persist/analysis/index/
+  cache plumbing). Shows only when `tier==="max" && isExtendedCompute()`; falls
+  back to a normal search otherwise. `parseQuestions` is pure + tested.
+- ⏭️ **Still pending**: discovery/insights dashboard; richer per-watch digest
+  content (currently deep-links only). See "Open follow-ups".
 
 ## Tech stack (as built — deviations from the original plan)
 
@@ -179,11 +207,12 @@ auto-runs a search (used by library suggestions).
 ## Monetization / tiers / models
 
 - **Tiers** (`src/lib/billing/entitlements.ts`): `free|pro|max`. `TIER_LIMITS` =
-  **10/60/200 searches/hour**, **flat 7 web sources for all tiers**, and a
-  `collections` cap (free 3, Pro/Max ∞). Source
-  depth was flattened (was 8/12/16) because deeper sourcing + Opus exceeds the
-  60s Hobby limit — **tiers currently differ by MODEL only**. Raise per-tier once
-  on Vercel Pro (comment marks the spot; `maxDuration=300` already set).
+  **10/60/200 searches/hour**, a Hobby-safe **flat 7 web sources baseline**, and a
+  `collections` cap (free 3, Pro/Max ∞). **Extended compute** (Vercel Pro / 300s,
+  gated by `LUMEN_EXTENDED_COMPUTE=1`): `searchDepth(tier)` switches sourcing to
+  **8 / 14 / 20** per tier with a larger content budget (28k→52k). Flag **off →
+  flat 7** (so it's safe to deploy on Hobby before Pro is live). `maxDuration=300`
+  is already set on the heavy routes; it only takes effect on Pro.
 - **`entitlements`** is server-authoritative: owner may **SELECT only**; writes
   via the service-role client (Stripe webhook) or SQL — tier can't be
   self-upgraded from the browser.
@@ -249,7 +278,7 @@ supabase/seed-source-ratings.sql     ~160-outlet credibility+lean seed (idempote
 
 ## Data model
 
-**19 tables** in `supabase/schema.sql` (idempotent) + `entitlements`. Enums
+**22 tables** in `supabase/schema.sql` (idempotent) + `entitlements`. Enums
 `plan_tier`, `credibility_tier`, **`political_lean`**. **RLS on every per-user
 table = `user_id = auth.uid()`** (profiles uses `id`; **entitlements is
 SELECT-only** for the owner). Signup trigger creates `profiles` + a free
@@ -258,7 +287,12 @@ SELECT-only** for the owner). Signup trigger creates `profiles` + a free
 and **`tags`/`search_tags`** (now = **collections**). New tables:
 **`audio_overviews`** (staged audio; `user_id`-scoped) and **`source_ratings`**
 (shared credibility+lean; **admin-only — RLS on, NO user policy**). `sources`
-gained a **`political_lean`** column. **Still unused**: `usage_quota`.
+gained a **`political_lean`** column. **Library Intelligence** adds
+**`summary_embeddings`** (pgvector `vector(1024)`, HNSW cosine index; owner-scoped)
+and **`library_messages`** (cross-library chat), plus the `match_library_chunks` /
+`match_related_summaries` RPCs. **Proactive discovery** adds **`topic_watches`**
+(watched topics) + a **`profiles.weekly_digest`** opt-in column. **Still unused**:
+`usage_quota`.
 
 ## Env vars (`.env.local` gitignored; prod = Vercel env)
 
@@ -266,16 +300,30 @@ Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `OPENROUTER_API_KEY`, **`SUPABASE_SERVICE_ROLE_KEY`**, `NEXT_PUBLIC_SITE_URL`.
 Stripe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`,
 `STRIPE_PRICE_MAX`. Recommended: `UPSTASH_REDIS_REST_URL`/`_TOKEN`. Optional:
-`OPENROUTER_MODEL_CATEGORIZE`, `JINA_API_KEY`, `OPENROUTER_BASE_URL`,
+`OPENROUTER_MODEL_CATEGORIZE`, `OPENROUTER_BASE_URL`,
 **`HUME_API_KEY`** (+ `HUME_VOICE_DESCRIPTION`) to enable Audio Overviews,
 `NEXT_PUBLIC_FEEDBACK_EMAIL` (shows the ratings "suggest a correction" link).
-Article models live in `model-catalog.ts` (NOT env).
+**`JINA_API_KEY`** powers the Jina Reader **and** Library Intelligence embeddings
+(`isEmbeddingsConfigured()` gates the feature; optional
+`JINA_EMBED_MODEL`/`JINA_EMBED_DIMENSIONS` default to `jina-embeddings-v3`/1024).
+**`RESEND_API_KEY`** (+ `RESEND_FROM`) + **`CRON_SECRET`** enable the weekly
+discovery digest (`isEmailConfigured()`); **`LUMEN_EXTENDED_COMPUTE=1`** turns on
+the Vercel-Pro path (deeper sourcing, inline indexing, one-call audio, and Deep
+Research). Article models live in `model-catalog.ts` (NOT env).
 
 ## Conventions & gotchas (learned the hard way)
 
 - **⚠️ 60s Vercel Hobby limit** shapes the pipeline: **persist BEFORE analysis**
   (analysis is best-effort after `done`), **flat 7 sources**, bounded context.
   Don't reintroduce heavy per-tier sourcing until on Vercel Pro.
+- **⚙️ Extended compute (`isExtendedCompute()` / `LUMEN_EXTENDED_COMPUTE=1`)** —
+  the single switch that leverages Vercel Pro's 300s. OFF by default (Hobby-safe
+  to deploy). When ON: `searchDepth(tier)` deepens sourcing (8/14/20) + budget;
+  the **search route indexes the fresh article inline** (`indexInline` — no
+  separate `/api/library/index` round-trip); the library backfill batch grows
+  10→40; and `POST /api/audio/overview` **synthesizes all segments in one call**
+  (falls back to the staged client loop on any segment failure). ⚠️ Only set the
+  flag once Pro is actually live, or searches time out at 60s.
 - **⚠️ Beat the 60s cap with STACKED requests, not post-`done` work.** On Hobby
   everything in ONE invocation (incl. work after the `done` event) shares the 60s
   budget. Heavy/optional work runs as a **separate request** with its own fresh
@@ -287,7 +335,13 @@ Article models live in `model-catalog.ts` (NOT env).
   bucket, the `political_lean` enum + `sources.political_lean` column, and
   `source_ratings`; then run `supabase/seed-source-ratings.sql`. **`persistResult`
   writes `political_lean`, so the column MUST exist before a deploy serves
-  searches** or saves fail. Verify with `GET /api/health?deep=1`.
+  searches** or saves fail. **Library Intelligence** adds the `vector` (pgvector)
+  extension, `summary_embeddings` (+ HNSW index) and `library_messages`, and the
+  `match_library_chunks` / `match_related_summaries` RPCs — all in `schema.sql`;
+  run it before setting `JINA_API_KEY` in prod or "Ask your library" 500s.
+  **Proactive discovery** adds `topic_watches` + a `profiles.weekly_digest`
+  column — re-run `schema.sql` before using Discover / the digest cron.
+  Verify with `GET /api/health?deep=1` (now includes an `embeddings` probe).
 - **`source_ratings` is admin-only** (RLS on, no user policy) — read/write only
   via the service-role client in `ratings.ts`. The hardcoded `credibility.ts`
   allowlist is the *floor* (`maxTier`); LLM ratings are capped at medium +

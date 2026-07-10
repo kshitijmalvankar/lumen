@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, Crown, Zap, Sparkles, ExternalLink } from "lucide-react";
-import { isSupabaseConfigured, isStripeConfigured } from "@/lib/env";
+import {
+  isSupabaseConfigured,
+  isStripeConfigured,
+  isEmailConfigured,
+} from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import {
   getEntitlement,
@@ -19,6 +23,7 @@ import {
   cancelSubscription,
   resumeSubscription,
   setPersonalization,
+  setWeeklyDigest,
   resetInterests,
 } from "./actions";
 import { SubmitButton } from "@/components/auth/submit-button";
@@ -57,6 +62,7 @@ export default async function SettingsPage({
   let cancelAtPeriodEnd = false;
   let interests: Interest[] = [];
   let personalizationOn = true;
+  let weeklyDigestOn = true;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -71,6 +77,12 @@ export default async function SettingsPage({
       hasSubscription = Boolean(ent.stripeSubscriptionId);
       personalizationOn = await getPersonalizationEnabled(supabase, user.id);
       interests = personalizationOn ? await getInterests(supabase, user.id) : [];
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("weekly_digest")
+        .eq("id", user.id)
+        .maybeSingle();
+      weeklyDigestOn = prof?.weekly_digest !== false;
       if (ent.stripeSubscriptionId && isStripeConfigured()) {
         try {
           const sub = await getStripe().subscriptions.retrieve(
@@ -259,6 +271,28 @@ export default async function SettingsPage({
           </>
         )}
       </section>
+
+      {/* Weekly digest email (only when Resend is configured) */}
+      {isEmailConfigured() && (
+        <section className="mt-4 rounded-2xl border bg-card p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-lg font-semibold tracking-tight">
+                Weekly digest
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A weekly email of the topics you track on Discover, plus fresh
+                reads worth a look. You can turn it off any time.
+              </p>
+            </div>
+            <form action={setWeeklyDigest.bind(null, !weeklyDigestOn)}>
+              <SubmitButton variant="outline" className="shrink-0">
+                {weeklyDigestOn ? "Turn off" : "Turn on"}
+              </SubmitButton>
+            </form>
+          </div>
+        </section>
+      )}
 
       {/* Data & privacy */}
       <section className="mt-4 rounded-2xl border bg-card p-6">

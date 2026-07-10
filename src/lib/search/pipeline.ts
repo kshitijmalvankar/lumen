@@ -78,14 +78,14 @@ interface UrlCitation {
  */
 export async function gatherSearchSources(
   query: string,
-  opts: { count?: number } = {},
+  opts: { count?: number; contentBudget?: number } = {},
 ): Promise<PreparedSource[]> {
-  const { count = 8 } = opts;
+  const { count = 8, contentBudget = TOTAL_CONTENT_BUDGET } = opts;
   requireEnv("openrouterApiKey");
   // Per-source cap scales down as the source count grows, bounding total context.
   const perSourceCap = Math.min(
     PROMPT_CONTENT_CAP,
-    Math.floor(TOTAL_CONTENT_BUDGET / count),
+    Math.floor(contentBudget / count),
   );
 
   const res = await fetch(`${env.openrouterBaseUrl}/chat/completions`, {

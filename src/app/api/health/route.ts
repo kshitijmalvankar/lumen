@@ -4,6 +4,7 @@ import {
   isSupabaseConfigured,
   isRedisConfigured,
   isStripeConfigured,
+  isEmbeddingsConfigured,
 } from "@/lib/env";
 import { getOpenRouter } from "@/lib/ai/openrouter";
 import { MODEL_CATALOG } from "@/lib/ai/model-catalog";
@@ -35,15 +36,16 @@ export async function GET(req: Request) {
     siteUrl: env.siteUrl,
   };
 
-  const [models, admin] = deep
-    ? await Promise.all([checkModelSlugs(), checkAdmin()])
-    : [undefined, undefined];
+  const [models, admin, embeddings] = deep
+    ? await Promise.all([checkModelSlugs(), checkAdmin(), checkEmbeddings()])
+    : [undefined, undefined, undefined];
 
   const degraded =
     !services.supabase ||
     !services.openrouter ||
     (models ? !models.ok : false) ||
-    (admin ? !admin.ok : false);
+    (admin ? !admin.ok : false) ||
+    (embeddings ? !embeddings.ok : false);
 
   return NextResponse.json(
     {
@@ -52,6 +54,7 @@ export async function GET(req: Request) {
       services,
       ...(models ? { models } : {}),
       ...(admin ? { admin } : {}),
+      ...(embeddings ? { embeddings } : {}),
     },
     { status: degraded ? 503 : 200, headers: { "Cache-Control": "no-store" } },
   );
@@ -74,6 +77,37 @@ async function checkAdmin(): Promise<{ ok: boolean; error?: string }> {
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "unknown" };
+  }
+}
+
+/**
+ * When Library Intelligence is configured, confirm its migration ran — probing
+ * the `summary_embeddings` table via the admin client. A missing table (forgot
+ * to run the pgvector migration) surfaces here instead of failing at ask time.
+ * Not configured → not degraded.
+ */
+async function checkEmbeddings(): Promise<{
+  ok: boolean;
+  configured: boolean;
+  error?: string;
+}> {
+  if (!isEmbeddingsConfigured()) return { ok: true, configured: false };
+  if (!env.supabaseServiceRoleKey) {
+    return { ok: false, configured: true, error: "no service role key" };
+  }
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("summary_embeddings")
+      .select("id", { head: true, count: "exact" });
+    if (error) return { ok: false, configured: true, error: error.message };
+    return { ok: true, configured: true };
+  } catch (err) {
+    return {
+      ok: false,
+      configured: true,
+      error: err instanceof Error ? err.message : "unknown",
+    };
   }
 }
 

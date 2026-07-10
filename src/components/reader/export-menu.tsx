@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileDown, Copy, Printer, Lock } from "lucide-react";
+import { Download, FileDown, Copy, Printer, Lock, Quote } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   exportFilename,
   type ExportableArticle,
 } from "@/lib/export/markdown";
+import { buildBibTeX } from "@/lib/export/citations";
 import type { Tier } from "@/lib/billing/entitlements";
 import { cn } from "@/lib/utils";
 
@@ -42,18 +43,46 @@ export function ExportMenu({
     }
   }
 
-  function downloadMarkdown() {
-    const blob = new Blob([buildExportMarkdown(article)], {
-      type: "text/markdown;charset=utf-8",
-    });
+  function download(content: string, filename: string, type: string) {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = exportFilename(article.title);
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadMarkdown() {
+    download(
+      buildExportMarkdown(article),
+      exportFilename(article.title),
+      "text/markdown;charset=utf-8",
+    );
+  }
+
+  async function copyCitations() {
+    if (article.sources.length === 0) {
+      toast.info("No sources to cite for this article.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(buildBibTeX(article.sources));
+      toast.success("Citations copied as BibTeX");
+    } catch {
+      toast.error("Couldn't copy — try downloading the .bib instead.");
+    }
+  }
+
+  function downloadBibTeX() {
+    if (article.sources.length === 0) {
+      toast.info("No sources to cite for this article.");
+      return;
+    }
+    const name = exportFilename(article.title).replace(/\.md$/, ".bib");
+    download(buildBibTeX(article.sources), name, "application/x-bibtex;charset=utf-8");
   }
 
   function savePdf() {
@@ -82,6 +111,15 @@ export function ExportMenu({
         <DropdownMenuItem onClick={downloadMarkdown}>
           <FileDown className="h-4 w-4" />
           Download .md
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={copyCitations}>
+          <Quote className="h-4 w-4" />
+          Copy citations (BibTeX)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={downloadBibTeX}>
+          <FileDown className="h-4 w-4" />
+          Download .bib
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={savePdf}>

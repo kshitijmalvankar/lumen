@@ -258,3 +258,57 @@ export async function checkChatRateLimit(
   const used = count ?? 0;
   return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };
 }
+
+// "Ask your library" (Pro/Max) — its own hourly cap, independent of chat/search.
+const LIBRARY_HOURLY_LIMIT = 60;
+
+let _libraryLimiter: Ratelimit | undefined;
+function libraryLimiter(): Ratelimit | null {
+  const redis = getRedis();
+  if (!redis) return null;
+  if (!_libraryLimiter) {
+    _libraryLimiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(LIBRARY_HOURLY_LIMIT, "1 h"),
+      prefix: "rl:library",
+    });
+  }
+  return _libraryLimiter;
+}
+
+/**
+ * Per-user hourly cap on library questions. Mirrors checkChatRateLimit: Upstash
+ * sliding window when configured, else counts the user's own `library_messages`
+ * rows in the trailing hour (RLS-scoped). Fails open on error.
+ */
+export async function checkLibraryRateLimit(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RateLimitResult> {
+  const limit = LIBRARY_HOURLY_LIMIT;
+
+  const limiter = libraryLimiter();
+  if (limiter) {
+    try {
+      const { success, remaining } = await limiter.limit(`u:${userId}`);
+      return { allowed: success, remaining, limit };
+    } catch (err) {
+      console.error("checkLibraryRateLimit: Upstash error; falling back to DB count:", err);
+    }
+  }
+
+  const since = new Date(Date.now() - HOUR_MS).toISOString();
+  const { count, error } = await supabase
+    .from("library_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("role", "user")
+    .gte("created_at", since);
+  if (error) {
+    console.error("checkLibraryRateLimit: DB fallback count failed; failing open:", error);
+    return { allowed: true, remaining: -1, limit };
+  }
+
+  const used = count ?? 0;
+  return { allowed: used < limit, remaining: Math.max(0, limit - used), limit };
+}

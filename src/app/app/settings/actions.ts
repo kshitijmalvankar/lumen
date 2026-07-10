@@ -71,6 +71,20 @@ export async function setPersonalization(enabled: boolean) {
   revalidatePath("/app/settings");
 }
 
+/** Opt in/out of the weekly discovery digest email. */
+export async function setWeeklyDigest(enabled: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/settings");
+  await supabase
+    .from("profiles")
+    .update({ weekly_digest: enabled })
+    .eq("id", user.id);
+  revalidatePath("/app/settings");
+}
+
 /** Forget all learned interests. */
 export async function resetInterests() {
   const supabase = await createClient();

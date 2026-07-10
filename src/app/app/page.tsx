@@ -1,5 +1,5 @@
 import { SearchView } from "@/components/search/search-view";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isSupabaseConfigured, isExtendedCompute } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { getUserTier, type Tier } from "@/lib/billing/entitlements";
 import { getPersonalizationEnabled } from "@/lib/library/categorize";
@@ -32,6 +32,7 @@ export default async function AppHome({
         tier={tier}
         personalizationEnabled={personalization}
         initialQuery={q ?? null}
+        deepResearchEnabled={tier === "max" && isExtendedCompute()}
       />
     </div>
   );
