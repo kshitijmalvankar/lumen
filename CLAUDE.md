@@ -7,10 +7,12 @@ Lumen is a web app that turns a **topic or pasted link** into a single,
 into a personal knowledge library. For casual readers and power users. A **paid
 product** (Free/Pro/Max via Stripe). **Web only (Next.js).**
 
-**🟢 LIVE in production: https://lumenlm.vercel.app** (Vercel **Hobby/free**
-plan → **60s serverless function limit**, which drives several design choices
-below). Full plan: **[PLAN.md](./PLAN.md)**. Setup: **[SETUP.md](./SETUP.md)**.
-Overview: **[README.md](./README.md)**. Go-live runbook: **[DEPLOY.md](./DEPLOY.md)**.
+**🟢 LIVE in production: https://lumenlm.vercel.app** (now on **Vercel Pro** →
+300s functions; **`LUMEN_EXTENDED_COMPUTE=1`** is the switch that leverages it —
+much of the pipeline was still shaped by the old 60s Hobby cap and stays
+Hobby-safe when the flag is off). Full plan: **[PLAN.md](./PLAN.md)**. Setup:
+**[SETUP.md](./SETUP.md)**. Overview: **[README.md](./README.md)**. Go-live
+runbook: **[DEPLOY.md](./DEPLOY.md)**.
 
 ## Status — what's built & shipped
 
@@ -94,6 +96,16 @@ Overview: **[README.md](./README.md)**. Go-live runbook: **[DEPLOY.md](./DEPLOY.
   `buildMessages` w/ the `deep` lens + all the existing persist/analysis/index/
   cache plumbing). Shows only when `tier==="max" && isExtendedCompute()`; falls
   back to a normal search otherwise. `parseQuestions` is pure + tested.
+- ✅ **Source-grounded chat + reformat**: search now **persists each source's full
+  text** (`sources.content`, carried through the Redis cache so cache-hits keep it
+  too). **Follow-up chat** is grounded in that content (not just the article); a
+  cheap `classifyFollowup` decides if the sources cover the question and, if not,
+  runs a fresh web search and **appends** the new sources to the article (deduped,
+  renumbered → client `router.refresh()`). **Reformat in the reader** (Pro/Max):
+  `FormatMenu` → `POST /api/article/reformat` → `reformatArticle` re-generates the
+  body under a new lens from the stored source text (per-format cache so switching
+  back is instant) + re-indexes embeddings; `summaries.format` tracks the current
+  lens. New articles also **auto-open in the reader** after generation.
 - ⏭️ **Still pending**: discovery/insights dashboard; richer per-watch digest
   content (currently deep-links only). See "Open follow-ups".
 
@@ -115,43 +127,56 @@ Overview: **[README.md](./README.md)**. Go-live runbook: **[DEPLOY.md](./DEPLOY.
 ## How search works (`POST /api/search`, NDJSON stream)
 
 `src/app/api/search/route.ts`:
-1. Auth → `getUserTier` → resolve article model (`resolveModelId`+`modelSlug`,
-   clamped to tier allowlist; thinking models get `reasoningEffort:'low'`) →
-   `checkRateLimit` → cache check (key includes resolved model id).
-2. Sources: keyword → `gatherSearchSources()` (web plugin, cheap
-   `categorizeModel()`, `TIER_LIMITS[tier].sources` = **flat 7**); URL →
-   `gatherUrlSource()` (Jina). Each source gets credibility + political lean via
-   `rateSourcesFast()` (`source_ratings` table + hardcoded floor — **no LLM on the
-   60s path**). Combined source content is bounded (`TOTAL_CONTENT_BUDGET` in
-   pipeline) to keep generation within budget.
-3. `streamSummary()` streams the cited Markdown (`delta` events).
-4. `parseArticle()` → title/blocks/citations/coverage. **Empty-article guard**:
-   if no text blocks → `error` + `markSearchError`, no persist/cache.
-5. **Persist FIRST, then analyze** (⚠️ reordered to survive the 60s limit):
-   `persistResult()` saves the article + emits `done` immediately; **then** (Pro/
-   Max) `generateAnalysis()` runs and, if it finishes, emits `analysis` +
-   patches `summaries.ai_analysis` + updates cache. So the article is **always
-   saved** even if analysis is slow / the function is cut short.
-6. **After `done`:** `categorizeSearch()` files the topic (best-effort).
+1. Auth → `getUserTier` → resolve model (`resolveModelId`+`modelSlug`, tier-clamped;
+   thinking models get `reasoningEffort:'low'`) → resolve **output lens**
+   (`resolveFormat`, `src/lib/ai/formats.ts`) → `checkRateLimit` → cache check (key
+   includes model id **and** `format.id`).
+2. Sources. **Deep research** (`mode:"deep"` + Max + `isExtendedCompute()`):
+   `planResearch()` → many parallel `gatherSearchSources()` + URL-dedupe
+   (`gatherDeepSources`, `src/lib/ai/research.ts`), forced `deep` lens. Else keyword
+   → `gatherSearchSources({count, contentBudget})` from `searchDepth(tier)` (flat 7
+   baseline; **8/14/20 + 52k budget when extended**); URL → `gatherUrlSource()`
+   (Jina). Each source rated by `rateSourcesFast()` (`source_ratings` + floor, no
+   LLM on the 60s path).
+3. `streamSummary()` streams cited Markdown (`buildMessages` w/ the lens directive +
+   `format.maxTokens`).
+4. `parseArticle()` → title/blocks/citations/coverage. **Empty-article guard**.
+5. **Persist FIRST, then analyze** (survives the 60s limit): `persistResult()` saves
+   the article — incl. **each source's full `content`** + `summaries.format` — and
+   emits `done`; **then** (Pro/Max) `generateAnalysis()` patches
+   `summaries.ai_analysis`. Article is always saved even if analysis is cut short.
+6. **After `done`:** `categorizeSearch()` files the topic; **inline library
+   indexing** (`indexInline` — Pro/Max + extended + embeddings) embeds it now.
 7. Events: `status`, `sources`, `delta`, `done` (incl. `tier`), `analysis`, `error`.
 
-`maxDuration = 300` (search + chat routes) — **effective only on Vercel Pro;
-Hobby clamps to 60s**. Client `SearchView` drives the stream; `CitationMarkdown`
-turns `[n]` into links → `SourceList` (`#source-n`). `/app?q=…` deep-link
-auto-runs a search (used by library suggestions).
+The Redis cache carries `sourceContent` (position→text) so a cache-hit persist keeps
+full source text too. `maxDuration=300` (effective on Vercel Pro; Hobby clamps to
+60s). Client `SearchView` streams, then **auto-opens the reader**
+(`/app/article/[id]`) once the stream closes (after analysis saves). Format lens +
+Deep-research toggle are picked pre-search; `/app?q=…` deep-links auto-run a search.
 
 ## Follow-up chat, sharing, suggestions
 
-- **Chat** (Max only): `src/app/api/chat/route.ts` (NDJSON), `src/lib/ai/chat.ts`
-  (grounded prompt), `src/components/chat/follow-up-chat.tsx` (+ locked teaser).
-  History via `getMessages` (`src/lib/library/messages.ts`), persisted to
-  `messages`. Own rate limit `checkChatRateLimit`.
+- **Chat** (Max only): `src/app/api/chat/route.ts` (NDJSON), `src/lib/ai/chat.ts`,
+  `src/components/chat/follow-up-chat.tsx` (+ locked teaser). **Grounded in each
+  source's full `content`** (not just the article). Before answering,
+  `classifyFollowup()` (cheap Haiku) decides if the sources cover the question; if
+  not it web-searches (`gatherSearchSources`) and **appends** the new sources to the
+  article (deduped by URL, renumbered) → `sources_added` event → client
+  `router.refresh()`. History via `getMessages`, `checkChatRateLimit`.
+- **Reformat** (Pro/Max): `FormatMenu` (`src/components/reader/format-menu.tsx`) →
+  `POST /api/article/reformat` → `reformatArticle` (`src/lib/article/reformat.ts`)
+  re-generates the body under a new lens from the stored source text, replaces
+  blocks (`writeArticleBlocks` in `persist.ts`), updates `summaries.format`,
+  re-indexes embeddings; a per-`(summary,format)` cache makes switching back instant.
 - **Share** (all tiers): `src/app/app/article/[id]/share-actions.ts`
   (`createShareLink`/`revokeShareLink`, 128-bit slug), public read
-  `src/lib/share/queries.ts` (`getSharedArticle` via admin client;
-  `getActiveShareUrl` via RLS), page `src/app/s/[slug]/page.tsx` (+
+  `src/lib/share/queries.ts` (`getSharedArticle` via admin; `getActiveShareUrl` via
+  RLS; `getPublicShareSlug` admin lookup), page `src/app/s/[slug]/page.tsx` (+
   `opengraph-image.tsx`), chrome `src/components/share/*`. `/s/` is public in
-  middleware; `robots.txt` disallows it + page sets `robots: noindex`.
+  middleware; `robots.txt` disallows it + `noindex`. **Reader redirect**: a
+  signed-in non-owner opening `/app/article/[id]` for a *shared* article is sent to
+  its `/s/` page instead of a 404 (so a shared reader link still works).
 - **Suggestions** (Pro/Max + personalization on): `src/lib/ai/suggest.ts`
   (`suggestPrompts`+`parseSuggestions`), `src/lib/library/suggestions.ts`
   (`getSuggestions`: Redis → `suggestions` table daily cap → one Haiku call;
@@ -243,36 +268,48 @@ src/app/page.tsx                     landing (aurora hero + marquee) + SiteFoote
 src/app/{privacy,terms,cookies}/     legal template pages (public)
 src/app/error.tsx, not-found.tsx     app error + 404 boundaries
 src/app/s/[slug]/{page,opengraph-image}.tsx  public shared article + OG image
-src/app/app/(layout|page).tsx        authed shell (ambient aurora) + SearchView
-src/app/app/library/*                library + setBookmark/backfillCategories
-src/app/app/article/[id]/{page,share-actions}.ts  reader + share/revoke actions
-src/app/app/{upgrade,settings}/*     plans + settings (+ deleteAccount)
+src/app/app/(layout|page).tsx        authed shell (aurora) + SearchView (format/deep)
+src/app/app/library/*                library + AskPanel + backfillCategories
+src/app/app/discover/{page,actions}.ts  watched topics + interest feed
+src/app/app/article/[id]/{page,share-actions}.ts  reader (+ FormatMenu/RelatedArticles)
+src/app/app/{upgrade,settings}/*     plans + settings (+ digest opt-in, deleteAccount)
 src/app/api/{search,chat,suggestions,health,stripe/webhook}/route.ts
+src/app/api/library/{ask,index}/route.ts    RAG ask + stacked embed indexing
+src/app/api/article/reformat/route.ts       re-generate a saved article in a new lens
 src/app/api/audio/overview/{route,segment/route}.ts   staged Hume audio
 src/app/api/ratings/classify/route.ts   stacked LLM credibility+lean pass
+src/app/api/cron/digest/route.ts     weekly digest (Vercel Cron, CRON_SECRET)
 src/proxy.ts                         session refresh + route guard (Next 16)
-src/lib/env.ts                       lenient env; isSupabase/Redis/Stripe/HumeConfigured
+src/lib/env.ts                       isSupabase/Redis/Stripe/Hume/Embeddings/EmailConfigured, isExtendedCompute
 src/lib/supabase/{client,server,admin,middleware}.ts   (admin = service role, server-only)
-src/lib/billing/{entitlements,stripe}.ts
-src/lib/ai/{openrouter,models,model-catalog,prompts,summarize,analysis,
-            analysis-normalize,categorize,parse,chat,suggest,audio-script}.ts
-src/lib/search/{pipeline,persist,credibility,ratings,ratings-core}.ts
+src/lib/billing/{entitlements,stripe}.ts   entitlements has TIER_LIMITS + searchDepth
+src/lib/ai/{openrouter,models,model-catalog,prompts,summarize,analysis,parse,
+  categorize,suggest,audio-script,chat,formats,embeddings,research,research-core}.ts
+src/lib/search/{pipeline,persist,credibility,ratings,ratings-core}.ts  (persist: writeArticleBlocks)
+src/lib/article/reformat.ts          reformatArticle (re-gen from stored source text)
+src/lib/library/{queries,categorize,messages,suggestions,collections,watches,
+  ask,ask-core,chunk,embeddings-index,related}.ts   (ask-core/chunk = pure, tested)
+src/lib/email/{resend,digest,digest-html}.ts   Resend + weekly digest (digest-html pure)
 src/lib/audio/{hume,storage,overview,guard}.ts   Hume TTS + storage + staged job
-src/lib/export/markdown.ts           buildExportMarkdown / exportFilename
+src/lib/export/{markdown,citations}.ts   Markdown + BibTeX/RIS export
 src/lib/reader/trust.ts              credibilityCounts + leanBalance
-src/lib/library/{queries,categorize,messages,suggestions,collections}.ts
-src/lib/share/queries.ts             getSharedArticle (admin) + getActiveShareUrl
+src/lib/share/queries.ts             getSharedArticle/getActiveShareUrl/getPublicShareSlug
 src/lib/{url,format,utils}.ts        safeNext/isSafeHttpUrl; formatDate; cn
-src/lib/cache/redis.ts               cache + rate limits (search/chat/audio/ratings)
+src/lib/cache/redis.ts               cache + rate limits (search/chat/audio/ratings/library)
 src/components/reader/{trust-panel,ratings-info,ratings-enricher,export-menu,
-  audio-overview,reading-progress}.tsx, library/collection-menu.tsx
+  format-menu,related-articles,audio-overview,reading-progress}.tsx
+src/components/interests/interests-chart.tsx   donut+bars (settings + library)
+src/components/library/{ask-panel,library-markdown,collection-menu}.tsx
+src/components/discover/{discover-view,watch-button}.tsx
 src/components/search/*, analysis/ai-analysis.tsx, chat/follow-up-chat.tsx,
-  share/*, suggestions/suggested-prompts.tsx,
-  legal/legal-page.tsx, settings/delete-account-button.tsx, site-footer.tsx
-src/**/*.test.ts                     Vitest — 10 files (parseArticle, resolveModelId,
+  suggestions/suggested-prompts.tsx, share/*, app-nav.tsx, site-footer.tsx
+src/**/*.test.ts                     Vitest — 17 files (parseArticle, resolveModelId,
   scoreCredibility, safeNext, normalizeAnalysis, parseSuggestions, buildExportMarkdown,
-  segmentScript, credibilityCounts+leanBalance, maxTier+parseDomainRatings+sanitizeLlmRating)
-supabase/schema.sql                  ALL tables + RLS + triggers (hand-run in SQL editor)
+  segmentScript, credibilityCounts+leanBalance, maxTier/parseDomainRatings/sanitizeLlmRating,
+  chunkArticle, buildLibraryContext, searchDepth, resolveFormat, buildBibTeX/buildRIS,
+  buildDigestHtml, parseQuestions)
+vercel.json                          Vercel Cron schedule (weekly digest)
+supabase/schema.sql                  ALL tables + RLS + triggers + RPCs (hand-run in SQL editor)
 supabase/seed-source-ratings.sql     ~160-outlet credibility+lean seed (idempotent)
 ```
 
@@ -291,7 +328,9 @@ gained a **`political_lean`** column. **Library Intelligence** adds
 **`summary_embeddings`** (pgvector `vector(1024)`, HNSW cosine index; owner-scoped)
 and **`library_messages`** (cross-library chat), plus the `match_library_chunks` /
 `match_related_summaries` RPCs. **Proactive discovery** adds **`topic_watches`**
-(watched topics) + a **`profiles.weekly_digest`** opt-in column. **Still unused**:
+(watched topics) + a **`profiles.weekly_digest`** opt-in column. **Source-grounded
+chat + reformat** add **`sources.content`** (full extracted text) +
+**`summaries.format`** (output lens, default `'standard'`). **Still unused**:
 `usage_quota`.
 
 ## Env vars (`.env.local` gitignored; prod = Vercel env)
@@ -341,7 +380,11 @@ Research). Article models live in `model-catalog.ts` (NOT env).
   run it before setting `JINA_API_KEY` in prod or "Ask your library" 500s.
   **Proactive discovery** adds `topic_watches` + a `profiles.weekly_digest`
   column — re-run `schema.sql` before using Discover / the digest cron.
-  Verify with `GET /api/health?deep=1` (now includes an `embeddings` probe).
+  **Source-grounded chat + reformat** add **`sources.content`** (full extracted
+  text) + **`summaries.format`** (the output lens) — ⚠️ `persistResult` now writes
+  BOTH, so these columns MUST exist before a deploy serves searches or saves
+  fail. Re-run `schema.sql`. Verify with `GET /api/health?deep=1` (includes an
+  `embeddings` probe).
 - **`source_ratings` is admin-only** (RLS on, no user policy) — read/write only
   via the service-role client in `ratings.ts`. The hardcoded `credibility.ts`
   allowlist is the *floor* (`maxTier`); LLM ratings are capped at medium +
@@ -365,12 +408,24 @@ Research). Article models live in `model-catalog.ts` (NOT env).
 
 ## Environment / deploy status
 
-- **Deployed to prod** (lumenlm.vercel.app, Vercel **Hobby/free**, 60s cap).
-  GitHub `origin/main` = deployed. Stripe **LIVE mode** configured (products/
-  prices, webhook endpoint + signing secret). **`HUME_API_KEY` set in Vercel**
-  (audio schema run). ⚠️ The latest **credibility/lean migration** (`political_lean`
-  + `source_ratings` + seed) must be hand-run before it works in prod (see gotcha).
-  The service-role-key misconfig was found and fixed (see gotcha).
+- **Now on Vercel PRO** (300s functions). `origin/main` auto-deploys to
+  lumenlm.vercel.app. Stripe **LIVE**; **`HUME_API_KEY`** set (needs Hume credits —
+  audio currently fails `zero_credits`); **`JINA_API_KEY`** set (Library
+  Intelligence live). Owner test account = **`kshitijmalvankar@gmail.com` (Max)**.
+- **⚠️ SESSION HANDOFF — read before deploying more.** `origin/main` @ **`bdbc9d5`**
+  is deployed and includes: interests donut, Library Intelligence, extended compute,
+  richer outputs, proactive discovery, deep research, the share-404 reader→`/s/`
+  redirect, and auto-open-in-reader. **UNCOMMITTED in the working tree**:
+  **source-grounded chat + auto-search-append + reader Reformat + storing
+  `sources.content`/`summaries.format`** (Part 1/2/3). ⚠️ Before committing/pushing
+  that batch, the owner MUST re-run `supabase/schema.sql` (adds `sources.content` +
+  `summaries.format`) — `persistResult` writes both, so **searches fail to save if
+  the columns are missing.** Then commit + push. `tsc`+`lint`+**76 vitest**+`next
+  build` were all green when built.
+- **Still to set in Vercel (owner):** `LUMEN_EXTENDED_COMPUTE=1` (unlocks deep
+  research + deeper sourcing + inline indexing + 1-call audio — redeploy after
+  setting). Email digest intentionally **skipped** (no `RESEND_API_KEY`/`CRON_SECRET`
+  → cron 401s harmlessly; Discover/watches still work).
 - Local `.env.local` (this machine) has Supabase + OpenRouter + Upstash + Stripe
   **TEST** keys; prod Vercel has **LIVE** keys. Email confirm OFF; test account
   `lumentest9123@gmail.com` (tier toggled via SQL).
@@ -387,15 +442,18 @@ Research). Article models live in `model-catalog.ts` (NOT env).
   without asking. **Commit only when asked; push only when asked.** Don't fight
   the user for port 3000.
 - I don't handle secrets/tokens/cards — the user sets those in Vercel/dashboards.
-- **Open follow-ups**: **Phase 2 = deep research** (staged like audio: plan →
-  gather → synthesize → structured, balanced report; wants **Vercel Pro** for
-  300s + richer sourcing — then raise per-tier `sources`). Deferred from the
-  review: a **client-state sources store** to drop the enricher's `router.refresh`;
-  **converge** the hardcoded `credibility.ts` map into `source_ratings` (single
-  source of truth); confidence-aware lean display. Still open: **Supabase CLI
-  migrations** (schema hand-run = prod-500 risk); **Sentry** (needs DSN); webhook
-  **dead-letter/audit** table; discovery feed. **Done this session**: NotebookLM
-  batch (trust panel, honest citations, export, collections, source-disagreement
-  analysis, reader streamline), **Audio Overview** (Hume, staged), **dynamic
-  credibility + political lean**, review-polish pass.
+- **Done (recent sessions):** interests donut + library topic deep-links + PDF
+  print fixes; **Library Intelligence** (Ask-your-library RAG + Related, Jina +
+  pgvector); **extended compute** flag (deeper sourcing / inline indexing / 1-call
+  audio / deep research); **richer outputs** (format lenses + BibTeX/RIS); **proactive
+  discovery** (watches + Discover + weekly digest cron/Resend); **deep research**;
+  **share-404 fix** (reader→`/s/` redirect) + **auto-open-in-reader**; **source-grounded
+  chat** (full source text + classify + web-search-and-append) + **reader Reformat**.
+- **Open follow-ups**: **richer per-watch digest** (currently deep-links only) +
+  discovery/insights **dashboard**; **stream the Reformat** re-gen (today it's a
+  loading toast + refresh); make **logged-out** shared reader links redirect to
+  `/s/` (middleware, currently only signed-in non-owners redirect); **top up Hume
+  credits** (audio fails `zero_credits`); converge `credibility.ts` into
+  `source_ratings`; **Supabase CLI migrations** (schema is hand-run = prod-500 risk);
+  **Sentry** (needs DSN); webhook dead-letter/audit table.
 ```

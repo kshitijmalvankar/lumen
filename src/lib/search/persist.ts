@@ -60,9 +60,11 @@ export async function persistResult(
     sources: PreparedSource[];
     modelUsed: string;
     aiAnalysis?: string | null;
+    format?: string;
   },
 ): Promise<string> {
-  const { userId, searchId, article, sources, modelUsed, aiAnalysis } = args;
+  const { userId, searchId, article, sources, modelUsed, aiAnalysis, format } =
+    args;
 
   const { data: summary, error: sumErr } = await supabase
     .from("summaries")
@@ -74,6 +76,7 @@ export async function persistResult(
       length_kind: article.lengthKind,
       citation_coverage: article.citationCoverage,
       ai_analysis: aiAnalysis ?? null,
+      format: format ?? "standard",
     })
     .select("id")
     .single();
@@ -95,6 +98,7 @@ export async function persistResult(
         credibility_tier: s.credibilityTier,
         political_lean: s.politicalLean,
         snippet: s.snippet,
+        content: s.content ?? null,
       })),
     )
     .select("id, position");
@@ -105,7 +109,34 @@ export async function persistResult(
     sourceIdByPosition.set(s.position as number, s.id as string),
   );
 
-  // Blocks, in order.
+  await writeArticleBlocks(supabase, {
+    summaryId,
+    userId,
+    article,
+    sourceIdByPosition,
+  });
+
+  await supabase.from("searches").update({ status: "done" }).eq("id", searchId);
+
+  return summaryId;
+}
+
+/**
+ * Insert an article's ordered blocks + their citation links. Shared by
+ * persistResult (a new article) and reformatArticle (a replaced body — which
+ * deletes the old blocks first, cascading their citations).
+ */
+export async function writeArticleBlocks(
+  supabase: SupabaseClient,
+  args: {
+    summaryId: string;
+    userId: string;
+    article: ParsedArticle;
+    sourceIdByPosition: Map<number, string>;
+  },
+): Promise<void> {
+  const { summaryId, userId, article, sourceIdByPosition } = args;
+
   const { data: insertedBlocks, error: blkErr } = await supabase
     .from("summary_blocks")
     .insert(
@@ -146,8 +177,4 @@ export async function persistResult(
       .insert(citationRows);
     if (citErr) throw new Error(`persist citations: ${citErr.message}`);
   }
-
-  await supabase.from("searches").update({ status: "done" }).eq("id", searchId);
-
-  return summaryId;
 }

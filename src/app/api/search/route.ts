@@ -49,6 +49,9 @@ interface CachedResult {
   markdown: string;
   sources: SourceMeta[];
   aiAnalysis?: string | null;
+  // Full source text keyed by position, so a cache-hit persist keeps it too
+  // (the client never receives this — only the persisted row does).
+  sourceContent?: Record<number, string>;
 }
 
 const CACHE_TTL_SECONDS = 60 * 60 * 24; // 24h for the "week" freshness window
@@ -172,9 +175,13 @@ export async function POST(req: Request) {
             userId: user.id,
             searchId,
             article,
-            sources: cached.sources.map((s) => ({ ...s, content: "" })),
+            sources: cached.sources.map((s) => ({
+              ...s,
+              content: cached.sourceContent?.[s.position] ?? "",
+            })),
             modelUsed: model,
             aiAnalysis: cachedAnalysis,
+            format: format.id,
           });
           send({
             type: "done",
@@ -225,6 +232,10 @@ export async function POST(req: Request) {
         }
 
         const sourceMeta: SourceMeta[] = sources.map(toMeta);
+        // Full source text keyed by position — cached so a later cache-hit
+        // persists it too; never sent to the client.
+        const sourceContent: Record<number, string> = {};
+        for (const s of sources) sourceContent[s.position] = s.content ?? "";
         send({ type: "sources", sources: sourceMeta });
 
         /* --------------------------- summarize ---------------------------- */
@@ -268,11 +279,12 @@ export async function POST(req: Request) {
           sources,
           modelUsed: model,
           aiAnalysis: null,
+          format: format.id,
         });
 
         await cacheSet<CachedResult>(
           cacheKey,
-          { title: article.title, markdown, sources: sourceMeta, aiAnalysis: null },
+          { title: article.title, markdown, sources: sourceMeta, aiAnalysis: null, sourceContent },
           CACHE_TTL_SECONDS,
         );
 
@@ -304,7 +316,7 @@ export async function POST(req: Request) {
                 .eq("id", summaryId);
               await cacheSet<CachedResult>(
                 cacheKey,
-                { title: article.title, markdown, sources: sourceMeta, aiAnalysis: text },
+                { title: article.title, markdown, sources: sourceMeta, aiAnalysis: text, sourceContent },
                 CACHE_TTL_SECONDS,
               );
             }

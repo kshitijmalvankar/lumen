@@ -4,7 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { checkChatRateLimit } from "@/lib/cache/redis";
 import { getUserTier } from "@/lib/billing/entitlements";
 import { blocksToMarkdown } from "@/lib/library/queries";
-import { streamChatAnswer, type ChatSource, type ChatTurn } from "@/lib/ai/chat";
+import {
+  streamChatAnswer,
+  classifyFollowup,
+  type ChatSource,
+  type ChatTurn,
+} from "@/lib/ai/chat";
+import { gatherSearchSources } from "@/lib/search/pipeline";
 import { modelSlug, isThinkingSlug } from "@/lib/ai/model-catalog";
 
 export const runtime = "nodejs";
@@ -73,7 +79,7 @@ export async function POST(req: Request) {
       .order("position", { ascending: true }),
     supabase
       .from("sources")
-      .select("position, title, domain")
+      .select("position, title, url, domain, content, snippet")
       .eq("summary_id", summaryId)
       .order("position", { ascending: true }),
     supabase
@@ -92,7 +98,17 @@ export async function POST(req: Request) {
     position: s.position as number,
     title: (s.title as string) ?? "",
     domain: (s.domain as string) ?? "",
+    content: (((s.content as string | null) || (s.snippet as string | null)) ?? "").slice(
+      0,
+      1600,
+    ),
   }));
+  const existingUrls = new Set(
+    (sourcesRes.data ?? [])
+      .map((s) => s.url as string | undefined)
+      .filter((u): u is string => Boolean(u)),
+  );
+  let maxPosition = sources.reduce((m, s) => Math.max(m, s.position), 0);
   const history: ChatTurn[] = (historyRes.data ?? []).map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content as string,
@@ -114,6 +130,55 @@ export async function POST(req: Request) {
     async start(controller) {
       const send = (obj: unknown) =>
         controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+
+      // If the article + its sources don't cover the question, search the web and
+      // APPEND the new sources to the article (deduped, renumbered) so this and
+      // future chats can cite them. Best-effort — never blocks the answer.
+      let sourcesAdded = false;
+      try {
+        const cls = await classifyFollowup({
+          question: message,
+          title: (summary.title as string) ?? "",
+          sources: sources.map((s) => ({ title: s.title, domain: s.domain })),
+        });
+        if (cls.search && cls.query) {
+          send({ type: "status", message: "Searching the web for more…" });
+          const fresh = await gatherSearchSources(cls.query, { count: 6 });
+          const newOnes = fresh.filter(
+            (f) => f.url && !existingUrls.has(f.url),
+          );
+          if (newOnes.length > 0) {
+            const rows = newOnes.map((f, i) => ({
+              summary_id: summaryId,
+              user_id: user.id,
+              position: maxPosition + 1 + i,
+              url: f.url,
+              title: f.title,
+              domain: f.domain,
+              published_at: f.publishedAt,
+              credibility_tier: f.credibilityTier,
+              political_lean: f.politicalLean,
+              snippet: f.snippet,
+              content: f.content ?? null,
+            }));
+            const { error: insErr } = await supabase.from("sources").insert(rows);
+            if (!insErr) {
+              newOnes.forEach((f, i) =>
+                sources.push({
+                  position: maxPosition + 1 + i,
+                  title: f.title,
+                  domain: f.domain,
+                  content: (f.content ?? "").slice(0, 1600),
+                }),
+              );
+              maxPosition += newOnes.length;
+              sourcesAdded = true;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("chat web-search step failed:", err);
+      }
 
       let answer = "";
       try {
@@ -139,6 +204,8 @@ export async function POST(req: Request) {
             content: answer,
           });
         }
+        // Tell the client to refresh so newly-appended sources show up.
+        if (sourcesAdded) send({ type: "sources_added" });
         send({ type: "done" });
       } catch (err) {
         console.error("chat route error:", err);

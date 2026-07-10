@@ -92,6 +92,9 @@ create table if not exists public.summaries (
 create index if not exists summaries_user_idx on public.summaries (user_id);
 -- Lumen's own AI commentary (Pro/Max only); null when free or nothing to add.
 alter table public.summaries add column if not exists ai_analysis text;
+-- The output lens used to write the article (see src/lib/ai/formats.ts); lets
+-- the reader show the current format and offer re-formatting later.
+alter table public.summaries add column if not exists format text not null default 'standard';
 
 create table if not exists public.summary_blocks (
   id         uuid primary key default gen_random_uuid(),
@@ -117,6 +120,9 @@ create table if not exists public.sources (
   political_lean   political_lean not null default 'unknown',
   snippet          text
 );
+-- Full extracted source text (kept so follow-up chat + reformatting can ground
+-- in the actual content, not just the 200-char snippet). Null for older rows.
+alter table public.sources add column if not exists content text;
 -- Idempotent add for databases created before political_lean existed.
 alter table public.sources add column if not exists political_lean political_lean not null default 'unknown';
 create index if not exists sources_summary_idx on public.sources (summary_id, position);

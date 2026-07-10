@@ -1,4 +1,5 @@
 import { getOpenRouter } from "./openrouter";
+import { categorizeModel } from "./models";
 import type { ReasoningEffort } from "./summarize";
 
 export interface ChatTurn {
@@ -10,13 +11,16 @@ export interface ChatSource {
   position: number;
   title: string;
   domain: string;
+  /** Excerpt of the source's full text (may be empty for older articles). */
+  content?: string;
 }
 
-const CHAT_SYSTEM = `You are Lumen, a research assistant helping a reader dig deeper into ONE specific article they just finished. The article and its numbered sources are given below. Answer the reader's follow-up questions about this material.
+const CHAT_SYSTEM = `You are Lumen, a research assistant helping a reader dig deeper into an article they just read. Below are the article AND numbered excerpts from each of its sources. Answer the reader's follow-up using BOTH.
 
 Rules:
-- Ground every answer in the article and its sources. Cite sources inline as [n] (matching the source numbers) whenever you draw on them.
-- If a question goes beyond what the article and sources cover, say so plainly and answer only as far as the material supports — never invent facts, figures, or sources.
+- Ground every answer in the article and the source excerpts. Cite sources inline as [n] (matching the numbers) whenever you draw on them.
+- You MAY use facts found in a source excerpt even if they aren't in the article body — that's encouraged.
+- If the article and excerpts still don't cover the question, say so plainly — never invent facts, figures, or sources.
 - Be concise and conversational: a few short paragraphs at most. Use Markdown when it aids clarity, but skip headings for short replies.
 - Don't restate the whole article; answer the specific question asked.`;
 
@@ -26,8 +30,11 @@ function buildSystem(
   sources: ChatSource[],
 ): string {
   const src = sources
-    .map((s) => `[${s.position}] ${s.title} — ${s.domain}`)
-    .join("\n");
+    .map((s) => {
+      const head = `[${s.position}] ${s.title} — ${s.domain}`;
+      return s.content ? `${head}\n${s.content}` : head;
+    })
+    .join("\n\n");
   return `${CHAT_SYSTEM}
 
 ARTICLE TITLE: ${title}
@@ -35,8 +42,48 @@ ARTICLE TITLE: ${title}
 ARTICLE:
 ${articleMarkdown}
 
-SOURCES:
+SOURCES (with excerpts):
 ${src}`;
+}
+
+/**
+ * Decide whether a follow-up can be answered from the saved article + its
+ * sources, or whether a fresh web search is warranted. Cheap model; conservative
+ * (defaults to "no search" on any parse/callout failure). Returns a focused
+ * query when a search is needed.
+ */
+export async function classifyFollowup(args: {
+  question: string;
+  title: string;
+  sources: { title: string; domain: string }[];
+}): Promise<{ search: boolean; query?: string }> {
+  try {
+    const client = getOpenRouter();
+    const src = args.sources
+      .map((s) => `- ${s.title} (${s.domain})`)
+      .join("\n");
+    const res = await client.chat.completions.create({
+      model: categorizeModel(),
+      messages: [
+        {
+          role: "user",
+          content: `A reader saved an article titled "${args.title}". Its sources are:\n${src}\n\nTheir follow-up question: "${args.question}"\n\nCan this be answered from that article and those sources, or do we clearly need a fresh web search? Reply with ONLY JSON: {"search": false} if answerable, or {"search": true, "query": "<focused web search query>"} if the article/sources clearly don't cover it.`,
+        },
+      ],
+      max_tokens: 120,
+    });
+    const text = res.choices?.[0]?.message?.content ?? "";
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+      const j = JSON.parse(m[0]) as { search?: boolean; query?: string };
+      if (j.search === true && typeof j.query === "string" && j.query.trim()) {
+        return { search: true, query: j.query.trim() };
+      }
+    }
+  } catch (err) {
+    console.error("classifyFollowup failed:", err);
+  }
+  return { search: false };
 }
 
 /**

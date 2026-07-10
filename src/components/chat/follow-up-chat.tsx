@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MessagesSquare, Send, Loader2, Lock, Sparkles, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,9 +27,11 @@ export function FollowUpChat({
   summaryId: string;
   initialMessages: Msg[];
 }) {
+  const router = useRouter();
   const [messages, setMessages] = React.useState<Msg[]>(initialMessages);
   const [input, setInput] = React.useState("");
   const [streaming, setStreaming] = React.useState("");
+  const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const endRef = React.useRef<HTMLDivElement | null>(null);
@@ -66,6 +69,7 @@ export function FollowUpChat({
         const decoder = new TextDecoder();
         let buf = "";
         let answer = "";
+        let refreshNeeded = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -86,6 +90,10 @@ export function FollowUpChat({
             if (evt.type === "delta") {
               answer += String(evt.text ?? "");
               setStreaming(answer);
+            } else if (evt.type === "status") {
+              setNote(String(evt.message ?? ""));
+            } else if (evt.type === "sources_added") {
+              refreshNeeded = true;
             } else if (evt.type === "error") {
               setError(String(evt.message ?? "Something went wrong."));
             }
@@ -95,14 +103,18 @@ export function FollowUpChat({
         if (answer.trim()) {
           setMessages((m) => [...m, { role: "assistant", content: answer }]);
         }
+        // New sources were appended to the article — refresh so the Sources
+        // list (and citations) reflect them.
+        if (refreshNeeded) router.refresh();
       } catch {
         setError("Connection lost. Please try again.");
       } finally {
+        setNote("");
         setStreaming("");
         setBusy(false);
       }
     },
-    [busy, summaryId],
+    [busy, summaryId, router],
   );
 
   function onSubmit(e: React.FormEvent) {
@@ -144,7 +156,7 @@ export function FollowUpChat({
           {busy && !streaming && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-brand" />
-              Thinking…
+              {note || "Thinking…"}
             </div>
           )}
           <div ref={endRef} />

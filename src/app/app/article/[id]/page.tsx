@@ -23,6 +23,7 @@ import { SourceList } from "@/components/search/source-list";
 import { BookmarkButton } from "@/components/library/bookmark-button";
 import { ShareButton } from "@/components/share/share-button";
 import { ExportMenu } from "@/components/reader/export-menu";
+import { FormatMenu } from "@/components/reader/format-menu";
 import { CollectionMenu } from "@/components/library/collection-menu";
 import {
   AudioOverview,
@@ -114,6 +115,9 @@ export default async function ArticlePage({
               {article.title}
             </h1>
             <div className="no-print flex shrink-0 flex-wrap items-center justify-end gap-2 sm:mt-1">
+              {tier !== "free" && (
+                <FormatMenu summaryId={article.summaryId} current={article.format} />
+              )}
               <ExportMenu
                 tier={tier}
                 article={{
