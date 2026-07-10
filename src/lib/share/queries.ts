@@ -26,6 +26,28 @@ export async function getActiveShareUrl(
   return slug ? `${env.siteUrl}/s/${slug}` : null;
 }
 
+/**
+ * Active (non-revoked) public share slug for an article, via the service-role
+ * admin client so it resolves for ANY viewer — not just the owner. Lets the
+ * reader page redirect a signed-in non-owner to the public `/s/` page (which the
+ * owner already made public) instead of 404ing on a shared reader link. Returns
+ * null when the article isn't shared.
+ */
+export async function getPublicShareSlug(
+  summaryId: string,
+): Promise<string | null> {
+  if (!env.supabaseServiceRoleKey) return null;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("shares")
+    .select("public_slug")
+    .eq("summary_id", summaryId)
+    .is("revoked_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  return (data?.[0]?.public_slug as string | undefined) ?? null;
+}
+
 export interface SharedArticle {
   title: string;
   query: string;

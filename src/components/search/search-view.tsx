@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Loader2,
@@ -78,6 +79,7 @@ export function SearchView({
   const [format, setFormat] = React.useState<SearchFormat>(DEFAULT_FORMAT);
   const [deep, setDeep] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
+  const router = useRouter();
 
   // Gently rotate the placeholder example while the field is idle + empty.
   React.useEffect(() => {
@@ -105,6 +107,9 @@ export function SearchView({
     setSources([]);
     setInfo(null);
     setError("");
+
+    let resultId: string | undefined;
+    let errored = false;
 
     try {
       const res = await fetch("/api/search", {
@@ -163,22 +168,32 @@ export function SearchView({
             case "done":
               setInfo(evt as unknown as DoneInfo);
               setStatus("done");
+              resultId =
+                String((evt as { summaryId?: string }).summaryId ?? "") ||
+                undefined;
               break;
             case "error":
               setError(String(evt.message ?? "Something went wrong."));
               setStatus("error");
+              errored = true;
               break;
           }
         }
       }
       // If the stream closed without an explicit done/error, settle gracefully.
       setStatus((s) => (s === "running" ? "done" : s));
+
+      // Article created — open it in the full reader. Done after the stream
+      // fully closes so the (paid) AI-analysis pass has already saved.
+      if (resultId && !errored) {
+        router.push(`/app/article/${resultId}`);
+      }
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setError("Connection lost. Please try again.");
       setStatus("error");
     }
-  }, [model, format, deep]);
+  }, [model, format, deep, router]);
 
   // Deep-link support: /app?q=… (e.g. a suggestion clicked from the library)
   // pre-fills and runs the search once on mount.

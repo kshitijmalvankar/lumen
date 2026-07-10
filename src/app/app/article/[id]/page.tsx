@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Link2 } from "lucide-react";
 import {
   isSupabaseConfigured,
@@ -9,7 +9,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getArticle } from "@/lib/library/queries";
 import { getRelated } from "@/lib/library/related";
-import { getActiveShareUrl } from "@/lib/share/queries";
+import { getActiveShareUrl, getPublicShareSlug } from "@/lib/share/queries";
 import { getMessages } from "@/lib/library/messages";
 import {
   listCollections,
@@ -49,7 +49,13 @@ export default async function ArticlePage({
 
   const supabase = await createClient();
   const article = await getArticle(supabase, id);
-  if (!article) notFound();
+  if (!article) {
+    // Not the viewer's article (or gone). If the owner made it public, send the
+    // viewer to the share page rather than 404ing on a shared reader link.
+    const slug = await getPublicShareSlug(id);
+    if (slug) redirect(`/s/${slug}`);
+    notFound();
+  }
 
   const {
     data: { user },
