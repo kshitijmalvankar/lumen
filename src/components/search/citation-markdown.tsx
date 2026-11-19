@@ -4,6 +4,27 @@ import * as React from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+// Defensively clean up common malformed Markdown so stray control characters
+// (e.g. "##" without a space, a dangling "**" from an unbalanced bold span)
+// don't render as literal junk. A no-op on well-formed Markdown.
+function normalizeMarkdown(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((raw) => {
+      // "##Heading" -> "## Heading" (Markdown requires the space after the #s).
+      // The lookahead rejects a following "#" so a valid "## Heading" (or "###")
+      // isn't split mid-run.
+      let line = raw.replace(/^(\s*)(#{1,6})(?![#\s])/, "$1$2 ");
+      // Drop a lone "**" left by an unbalanced bold span on this line.
+      if ((line.split("**").length - 1) % 2 === 1) {
+        const idx = line.lastIndexOf("**");
+        line = line.slice(0, idx) + line.slice(idx + 2);
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 // Turn bare [n] citation markers into links to the source list.
 function linkifyCitations(markdown: string): string {
   return markdown.replace(/\[(\d{1,3})\]/g, "[$1](#source-$1)");
@@ -80,18 +101,29 @@ const markedParagraph: Components["p"] = ({ node, children }) => {
 export function CitationMarkdown({
   markdown,
   markUnsourced = false,
+  variant = "article",
 }: {
   markdown: string;
   /** Flag paragraphs with no [n] citation. On for articles, off for chat/analysis. */
   markUnsourced?: boolean;
+  /** "article" = hero reader typography; "compact" = sized for a chat bubble. */
+  variant?: "article" | "compact";
 }) {
-  const processed = React.useMemo(() => linkifyCitations(markdown), [markdown]);
+  // Normalize only for compact (chat) — that's where malformed model output
+  // lands in a small bubble; the article reader renders trusted, parsed blocks.
+  const processed = React.useMemo(
+    () =>
+      linkifyCitations(
+        variant === "compact" ? normalizeMarkdown(markdown) : markdown,
+      ),
+    [markdown, variant],
+  );
   const components = React.useMemo<Components>(
     () => (markUnsourced ? { a: citationLink, p: markedParagraph } : { a: citationLink }),
     [markUnsourced],
   );
   return (
-    <div className="article">
+    <div className={variant === "compact" ? "article-compact" : "article"}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {processed}
       </ReactMarkdown>
