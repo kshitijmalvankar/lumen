@@ -46,6 +46,7 @@ const EXAMPLES = [
 
 const PHASES = ["searching", "reading", "writing", "analyzing"] as const;
 const PHASE_LABEL: Record<string, string> = {
+  planning: "Planning the research",
   searching: "Searching credible sources",
   reading: "Reading the sources",
   writing: "Writing your article",
@@ -69,6 +70,12 @@ export function SearchView({
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<Status>("idle");
   const [phase, setPhase] = React.useState<string>("");
+  // Server-supplied status text (e.g. "Researching 6 angles"), preferred over
+  // the generic per-phase label when present.
+  const [statusMessage, setStatusMessage] = React.useState<string>("");
+  // Deep-research sub-questions, streamed before sourcing so the reader can see
+  // the angles being investigated.
+  const [plan, setPlan] = React.useState<string[]>([]);
   const [markdown, setMarkdown] = React.useState("");
   const [analysis, setAnalysis] = React.useState("");
   const [sources, setSources] = React.useState<SourceMeta[]>([]);
@@ -101,7 +108,9 @@ export function SearchView({
 
     setQuery(trimmed);
     setStatus("running");
-    setPhase("searching");
+    setPhase(deep ? "planning" : "searching");
+    setStatusMessage("");
+    setPlan([]);
     setMarkdown("");
     setAnalysis("");
     setSources([]);
@@ -154,10 +163,15 @@ export function SearchView({
           switch (evt.type) {
             case "status":
               setPhase(String(evt.phase ?? ""));
+              setStatusMessage(String(evt.message ?? ""));
+              break;
+            case "plan":
+              setPlan((evt.questions as string[]) ?? []);
               break;
             case "sources":
               setSources((evt.sources as SourceMeta[]) ?? []);
               setPhase("writing");
+              setStatusMessage("");
               break;
             case "delta":
               setMarkdown((m) => m + String(evt.text ?? ""));
@@ -369,7 +383,25 @@ export function SearchView({
             {query}
           </p>
 
-          {isRunning && <PhaseIndicator phase={phase} />}
+          {isRunning && <PhaseIndicator phase={phase} label={statusMessage} />}
+
+          {plan.length > 0 && (
+            <div className="mt-4 rounded-xl border border-brand/20 bg-brand/[0.04] p-4">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">
+                <Telescope className="h-3.5 w-3.5" /> Research angles
+              </p>
+              <ol className="mt-2 space-y-1">
+                {plan.map((q, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                    <span className="shrink-0 font-medium text-brand/70">
+                      {i + 1}.
+                    </span>
+                    <span className="min-w-0">{q}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {markdown && (
             <div className="mt-5">
@@ -432,13 +464,13 @@ export function SearchView({
   );
 }
 
-function PhaseIndicator({ phase }: { phase: string }) {
+function PhaseIndicator({ phase, label }: { phase: string; label?: string }) {
   const activeIdx = PHASES.indexOf(phase as (typeof PHASES)[number]);
   return (
     <div className="mt-4 flex flex-col gap-3">
       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         <Loader2 className="h-4 w-4 animate-spin text-brand" />
-        {PHASE_LABEL[phase] ?? "Working"}…
+        {label || PHASE_LABEL[phase] || "Working"}…
       </div>
       <div className="flex gap-1.5">
         {PHASES.map((p, i) => {

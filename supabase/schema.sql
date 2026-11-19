@@ -95,6 +95,9 @@ alter table public.summaries add column if not exists ai_analysis text;
 -- The output lens used to write the article (see src/lib/ai/formats.ts); lets
 -- the reader show the current format and offer re-formatting later.
 alter table public.summaries add column if not exists format text not null default 'standard';
+-- Deep-research sub-questions (the plan the report was built around), so the
+-- reader can show the angles investigated. Null for normal (non-deep) searches.
+alter table public.summaries add column if not exists research_plan text[];
 
 create table if not exists public.summary_blocks (
   id         uuid primary key default gen_random_uuid(),

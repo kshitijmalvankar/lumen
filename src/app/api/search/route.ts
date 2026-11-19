@@ -52,6 +52,8 @@ interface CachedResult {
   // Full source text keyed by position, so a cache-hit persist keeps it too
   // (the client never receives this — only the persisted row does).
   sourceContent?: Record<number, string>;
+  // Deep-research sub-questions, so a cache hit still shows + persists them.
+  researchPlan?: string[];
 }
 
 const CACHE_TTL_SECONDS = 60 * 60 * 24; // 24h for the "week" freshness window
@@ -158,6 +160,9 @@ export async function POST(req: Request) {
         // a blank article.
         if (cached && cached.markdown.trim()) {
           send({ type: "status", phase: "cached", message: "Found a recent result" });
+          if (cached.researchPlan?.length) {
+            send({ type: "plan", questions: cached.researchPlan });
+          }
           send({ type: "sources", sources: cached.sources });
 
           // Stream the cached markdown in small chunks for a live feel.
@@ -182,6 +187,7 @@ export async function POST(req: Request) {
             modelUsed: model,
             aiAnalysis: cachedAnalysis,
             format: format.id,
+            researchPlan: cached.researchPlan,
           });
           send({
             type: "done",
@@ -197,22 +203,31 @@ export async function POST(req: Request) {
         }
 
         /* ------------------------- gather sources ------------------------- */
-        send({ type: "status", phase: "searching", message: "Searching credible sources" });
+        send({
+          type: "status",
+          phase: deep ? "planning" : "searching",
+          message: deep ? "Planning the research" : "Searching credible sources",
+        });
 
         let sources: PreparedSource[];
+        // Deep research: the plan (sub-questions) drives sourcing AND synthesis.
+        let researchPlan: string[] = [];
         if (inputType === "url") {
           sources = await gatherUrlSource(query);
         } else if (deep) {
-          send({ type: "status", phase: "searching", message: "Planning the research" });
-          const subs = await planResearch(query);
+          researchPlan = await planResearch(query);
+          // Surface the angles so the reader can see the research being planned.
+          if (researchPlan.length) {
+            send({ type: "plan", questions: researchPlan });
+          }
           send({
             type: "status",
             phase: "reading",
-            message: subs.length
-              ? `Researching ${subs.length + 1} angles`
+            message: researchPlan.length
+              ? `Researching ${researchPlan.length + 1} angles`
               : "Gathering sources",
           });
-          sources = await gatherDeepSources(query, subs);
+          sources = await gatherDeepSources(query, researchPlan);
         } else {
           const { sources: sourceCount, contentBudget } = searchDepth(tier);
           sources = await gatherSearchSources(query, {
@@ -241,7 +256,13 @@ export async function POST(req: Request) {
         /* --------------------------- summarize ---------------------------- */
         send({ type: "status", phase: "writing", message: "Writing your article" });
 
-        const messages = buildMessages({ query, inputType, sources, format: format.id });
+        const messages = buildMessages({
+          query,
+          inputType,
+          sources,
+          format: format.id,
+          researchPlan: deep ? researchPlan : undefined,
+        });
         let markdown = "";
         for await (const delta of streamSummary({
           model,
@@ -280,11 +301,19 @@ export async function POST(req: Request) {
           modelUsed: model,
           aiAnalysis: null,
           format: format.id,
+          researchPlan,
         });
 
         await cacheSet<CachedResult>(
           cacheKey,
-          { title: article.title, markdown, sources: sourceMeta, aiAnalysis: null, sourceContent },
+          {
+            title: article.title,
+            markdown,
+            sources: sourceMeta,
+            aiAnalysis: null,
+            sourceContent,
+            researchPlan: researchPlan.length ? researchPlan : undefined,
+          },
           CACHE_TTL_SECONDS,
         );
 
@@ -316,7 +345,14 @@ export async function POST(req: Request) {
                 .eq("id", summaryId);
               await cacheSet<CachedResult>(
                 cacheKey,
-                { title: article.title, markdown, sources: sourceMeta, aiAnalysis: text, sourceContent },
+                {
+                  title: article.title,
+                  markdown,
+                  sources: sourceMeta,
+                  aiAnalysis: text,
+                  sourceContent,
+                  researchPlan: researchPlan.length ? researchPlan : undefined,
+                },
                 CACHE_TTL_SECONDS,
               );
             }

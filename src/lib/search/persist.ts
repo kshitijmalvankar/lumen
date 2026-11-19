@@ -61,10 +61,20 @@ export async function persistResult(
     modelUsed: string;
     aiAnalysis?: string | null;
     format?: string;
+    /** Deep-research sub-questions; persisted so the reader can show them. */
+    researchPlan?: string[];
   },
 ): Promise<string> {
-  const { userId, searchId, article, sources, modelUsed, aiAnalysis, format } =
-    args;
+  const {
+    userId,
+    searchId,
+    article,
+    sources,
+    modelUsed,
+    aiAnalysis,
+    format,
+    researchPlan,
+  } = args;
 
   const { data: summary, error: sumErr } = await supabase
     .from("summaries")
@@ -82,6 +92,18 @@ export async function persistResult(
     .single();
   if (sumErr) throw new Error(`persist summary: ${sumErr.message}`);
   const summaryId = summary.id as string;
+
+  // Deep-research plan — written separately + best-effort so a not-yet-migrated
+  // `research_plan` column never breaks the (already-committed) article save.
+  if (researchPlan?.length) {
+    const { error: planErr } = await supabase
+      .from("summaries")
+      .update({ research_plan: researchPlan })
+      .eq("id", summaryId);
+    if (planErr) {
+      console.error("persist research_plan (non-fatal):", planErr.message);
+    }
+  }
 
   // Sources, ordered by their [n] position.
   const { data: insertedSources, error: srcErr } = await supabase

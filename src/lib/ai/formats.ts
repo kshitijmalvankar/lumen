@@ -43,8 +43,8 @@ export const SEARCH_FORMATS: FormatDef[] = [
     label: "In-depth",
     hint: "Longer & thorough",
     directive:
-      'Write a thorough, multi-section article: cover context, the key details, competing views, and implications, each under its own "##" heading.',
-    maxTokens: 12000,
+      'Compose a thorough, multi-section article: cover context, the key details, competing views, and implications, each under its own "##" heading. Show different thoughprocesses applicable through which the query can be looked at. The article should be as in depth as possible without breaking any rules',
+    maxTokens: 20000,
   },
   {
     id: "comparison",

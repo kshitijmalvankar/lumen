@@ -41,8 +41,10 @@ export async function gatherDeepSources(
   subQuestions: string[],
   opts: { perQuestion?: number; totalCap?: number } = {},
 ): Promise<PreparedSource[]> {
-  const perQuestion = opts.perQuestion ?? 6;
-  const totalCap = opts.totalCap ?? 22;
+  // Fetch a few more per angle than we keep, so dedupe still leaves room to
+  // reach the cap. With ~5 sub-questions + the topic, 7×6 ≈ 42 candidates → 30.
+  const perQuestion = opts.perQuestion ?? 7;
+  const totalCap = opts.totalCap ?? 30;
   // Smaller per-source slice than a normal search — many sources, bounded total.
   const contentBudget = 12000;
 

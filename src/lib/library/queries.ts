@@ -26,6 +26,8 @@ export interface ArticleData {
   citationCoverage: number | null;
   modelUsed: string | null;
   format: string;
+  /** Deep-research sub-questions the report was built around; empty otherwise. */
+  researchPlan: string[];
   bookmarked: boolean;
   bodyMarkdown: string;
   aiAnalysis: string | null;
@@ -125,7 +127,7 @@ export async function getArticle(
   if (error) throw new Error(`getArticle: ${error.message}`);
   if (!summary) return null;
 
-  const [blocksRes, sourcesRes, bmRes] = await Promise.all([
+  const [blocksRes, sourcesRes, bmRes, planRes] = await Promise.all([
     supabase
       .from("summary_blocks")
       .select("position, type, content")
@@ -142,6 +144,13 @@ export async function getArticle(
       .from("bookmarks")
       .select("summary_id")
       .eq("summary_id", summaryId)
+      .maybeSingle(),
+    // Separate + non-fatal: a not-yet-migrated `research_plan` column must not
+    // break the whole reader. Errors leave researchPlan empty.
+    supabase
+      .from("summaries")
+      .select("research_plan")
+      .eq("id", summaryId)
       .maybeSingle(),
   ]);
 
@@ -184,6 +193,7 @@ export async function getArticle(
     citationCoverage: (s.citation_coverage as number | null) ?? null,
     modelUsed: (s.model_used as string | null) ?? null,
     format: (s.format as string | null) ?? "standard",
+    researchPlan: (planRes.data?.research_plan as string[] | null) ?? [],
     bookmarked: Boolean(bmRes.data),
     bodyMarkdown: blocksToMarkdown(blocks),
     aiAnalysis: (s.ai_analysis as string | null) ?? null,
