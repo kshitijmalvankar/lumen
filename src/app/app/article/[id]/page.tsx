@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Link2 } from "lucide-react";
+import { ArrowLeft, Link2, Telescope } from "lucide-react";
 import {
   isSupabaseConfigured,
   isHumeConfigured,
@@ -16,7 +16,7 @@ import {
   getArticleCollectionIds,
 } from "@/lib/library/collections";
 import { getUserTier, TIER_LIMITS } from "@/lib/billing/entitlements";
-import { CitationMarkdown } from "@/components/search/citation-markdown";
+import { CollapsibleArticle } from "@/components/reader/collapsible-article";
 import { TrustPanel } from "@/components/reader/trust-panel";
 import { RatingsEnricher } from "@/components/reader/ratings-enricher";
 import { SourceList } from "@/components/search/source-list";
@@ -31,7 +31,7 @@ import {
 } from "@/components/reader/audio-overview";
 import { AiAnalysis, AiAnalysisTeaser } from "@/components/analysis/ai-analysis";
 import { RelatedArticles } from "@/components/reader/related-articles";
-import { FollowUpChat, FollowUpChatLocked } from "@/components/chat/follow-up-chat";
+import { FollowUpChat } from "@/components/chat/follow-up-chat";
 import { ReadingProgress } from "@/components/reader/reading-progress";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -172,8 +172,29 @@ export default async function ArticlePage({
           />
         </div>
 
+        {article.researchPlan.length > 0 && (
+          <div className="mt-8 rounded-xl border border-brand/20 bg-brand/[0.04] p-4">
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">
+              <Telescope className="h-3.5 w-3.5" /> Research angles
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Lumen investigated these questions to build this report.
+            </p>
+            <ol className="mt-3 space-y-1.5">
+              {article.researchPlan.map((q, i) => (
+                <li key={i} className="flex gap-2 text-sm text-foreground/85">
+                  <span className="shrink-0 font-medium text-brand/70">
+                    {i + 1}.
+                  </span>
+                  <span className="min-w-0">{q}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
         <div className="mt-8">
-          <CitationMarkdown markdown={article.bodyMarkdown} markUnsourced />
+          <CollapsibleArticle markdown={article.bodyMarkdown} />
         </div>
 
         {article.aiAnalysis ? (
@@ -200,19 +221,15 @@ export default async function ArticlePage({
           </div>
         )}
 
-        <div className="no-print">
-          {tier === "max" ? (
-            <FollowUpChat
-              summaryId={article.summaryId}
-              initialMessages={chatHistory.map((m) => ({
-                role: m.role,
-                content: m.content,
-              }))}
-            />
-          ) : (
-            <FollowUpChatLocked />
-          )}
-        </div>
+        <FollowUpChat
+          summaryId={article.summaryId}
+          locked={tier !== "max"}
+          initialMessages={
+            tier === "max"
+              ? chatHistory.map((m) => ({ role: m.role, content: m.content }))
+              : []
+          }
+        />
 
         <p className="mt-10 border-t pt-4 text-xs text-muted-foreground">
           Lumen summarizes sources and can be wrong — open the sources to verify

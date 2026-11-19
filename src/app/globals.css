@@ -254,7 +254,7 @@
   @apply text-lg font-semibold mt-8 sm:text-xl;
 }
 .article p {
-  @apply text-pretty text-foreground/85;
+  @apply text-pretty text-justify text-foreground/85 hyphens-auto;
 }
 .article ul {
   @apply list-disc pl-6 space-y-1.5 marker:text-muted-foreground;
@@ -269,6 +269,55 @@
   @apply border-l-2 border-brand/40 pl-4 italic text-muted-foreground;
 }
 .article a:not(.citation) {
+  @apply text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand;
+}
+
+/* ---------- Compact prose (chat bubbles / inline answers) ----------------- */
+/* Same citation behavior as .article, but sized for a message bubble instead
+   of the hero reader column — UI font, modest headings, tighter rhythm so a
+   follow-up answer reads like chat, not a full article. */
+.article-compact {
+  @apply text-sm leading-relaxed text-foreground/90;
+  overflow-wrap: break-word;
+}
+.article-compact > * + * {
+  @apply mt-3;
+}
+.article-compact h1,
+.article-compact h2,
+.article-compact h3,
+.article-compact h4 {
+  @apply mt-4 font-semibold tracking-tight text-foreground;
+}
+.article-compact h1 {
+  @apply text-[0.95rem];
+}
+.article-compact h2 {
+  @apply text-[0.9rem];
+}
+.article-compact h3,
+.article-compact h4 {
+  @apply text-sm;
+}
+.article-compact p {
+  @apply text-foreground/85;
+}
+.article-compact ul {
+  @apply list-disc pl-5 space-y-1 marker:text-muted-foreground;
+}
+.article-compact ol {
+  @apply list-decimal pl-5 space-y-1 marker:text-muted-foreground;
+}
+.article-compact strong {
+  @apply font-semibold text-foreground;
+}
+.article-compact blockquote {
+  @apply border-l-2 border-brand/40 pl-3 italic text-muted-foreground;
+}
+.article-compact code {
+  @apply rounded bg-muted px-1 py-0.5 text-[0.85em];
+}
+.article-compact a:not(.citation) {
   @apply text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand;
 }
 
